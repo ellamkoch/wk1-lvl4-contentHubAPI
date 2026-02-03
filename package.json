@@ -1,0 +1,54 @@
+{
+  "name": "wk1-lvl4-contenthubapi",
+  "version": "1.0.0",
+  "description": "This is the repo for Week 1 of CodeX, Level 4. This is a simple API project for a content hub API.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format:check": "prettier . --check",
+    "format:write": "prettier . --write",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ellamkoch/wk1-lvl4-contentHubAPI.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/ellamkoch/wk1-lvl4-contentHubAPI/issues"
+  },
+  "homepage": "https://github.com/ellamkoch/wk1-lvl4-contentHubAPI#readme",
+  "imports": {
+    "#app": "./src/createApp.js",
+    "#routes/*": "./src/routes/*.js",
+    "#controllers/*": "./src/controllers/*.js",
+    "#middleware/*": "./src/middleware/*.js",
+    "#repositories/*": "./src/repositories/*.js",
+    "#utils/*": "./src/utils/*.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.3.0",
+    "prettier": "^3.8.1",
+    "supertest": "^7.2.2",
+    "vitest": "^4.0.18"
+  }
+}
