@@ -41,7 +41,7 @@ export function createApp({ repos }) {
   // Routes - this connects the postRouter to the main app
   app.use('/posts', postsRouter);
 
-  // This installs the Error handling software. This middleware must be last (4 args signature) as it acts as a final safety net as if any problem that falls through all others will then be handled by the middleware, and prevent the ap from crashing. 
+  // This installs the Error handling software. This middleware must be last (4 args signature) as it acts as a final safety net as if any problem that falls through all others will then be handled by the middleware, and prevent the ap from crashing.
   app.use(errorHandler);
 
   return app;
