@@ -5,18 +5,22 @@ import morgan from 'morgan';
 
 import { postsRouter } from '#routes/posts.routes';
 import { errorHandler } from '#middleware/errorHandler';
+import { notFoundHandler } from '#middleware/notFoundHandler';
+import { respond} from '#middleware/respond';
 
 /**
  * This is a Factory pattern that creates the Express app with injected dependencies.
  * This is the pattern that makes testing easy with Supertest.
  *
- * @param {{ repos: any }} deps
+ * @param {{ repos: any, config?: object }} deps
  * @returns {import('express').Express}
  */
-export function createApp({ repos }) {
+export function createApp({ repos, config = {} }) {
   // Express functions always return objects that have functionality built in
   // Initialize the app object that's returned from the Express function
   const app = express();
+
+  app.locals.config = config;
 
   // This is a built in feature that lets the app understand and parse JSON request bodies
   app.use(express.json());
@@ -26,6 +30,9 @@ export function createApp({ repos }) {
 
   // This is a logging tool that acts like a surveillance camera, logging requests the API gets and printing helpful info into the console.  (dev-friendly)
   app.use(morgan('dev'));
+
+  //Middleware response helpers (res.ok/res.created, etc.) Must go before routes to prep the response before anyone uses it.
+  app.use(respond);
 
   // Health check endpoint - This creates a simple message to see if the app is alive and running correctly.
   app.get('/health', (_req, res) => { //the _ before req means that this can be ignored.
@@ -41,7 +48,10 @@ export function createApp({ repos }) {
   // Routes - this connects the postRouter to the main app
   app.use('/posts', postsRouter);
 
-  // This installs the Error handling software. This middleware must be last (4 args signature) as it acts as a final safety net as if any problem that falls through all others will then be handled by the middleware, and prevent the ap from crashing.
+  //This catches not defined routes with a specific message. This must be listed after routes so it only runs when no route matches (i.e., catch all for 404s). Otherwise every request would be a 404 immediately.
+  app.use(notFoundHandler);
+
+  // This installs the Error handling software. This middleware must be last (4 args signature) as it acts as a final safety net as if any problem that falls through all others will then be handled by the middleware, and prevent the app from crashing. Only runs if something is thrown or a next(err) is called.
   app.use(errorHandler);
 
   return app;

@@ -21,6 +21,11 @@ ________________________________________________________________________________
     - The server fetches the posts from the repository.
     - The server sends them back as JSON in the HTTP response.
 */
+
+import { notFound } from '#utils/httpErrors'; // helper that creates a standard 404 error object to throw
+import { ensureBodyFields} from '#utils/guard'; //guard that enforces required fiels in req.body so we don't have to rewrite (!title || !body) logic every time its needed.
+
+
 export function listPosts(_req, res) {
 /** res.locals is an Express-provided object that can store data for the lifetime of THIS request.
    * In our app the repos are stored on res.locals.repos. Think of repos as storage at this point,
@@ -53,14 +58,11 @@ export function getPost(req, res) {
 
   const post = posts.getById(id); // Ask the repository for the post with this id.
 
-  if (!post) { // If no post is found, we intentionally return a 404 not found error msg.
-    /** return stops the function so we don't try to send another response.
-     * res.status(404) sets the HTTP status code.
-     * .json(...) sends the JSON body and ends the response.*/
-    return res.status(404).json({ error: { message: 'Post not found' } })
+  if (!post) { //if a post isn't found, it throws an error
+    throw notFound('Post not found');
   }
-  // If the post IS found, we return it with a 200 (OK) response.
-  return res.status(200).json({ data: post });
+
+  return res.ok(post); //otherwise returns the successfully found post.
   }
 /**
  * POST /posts
@@ -79,16 +81,10 @@ export function getPost(req, res) {
     */
 export function createPost(req, res) {
   // Pull title and body from the incoming request body.
-  const { title, body } = req.body ?? {}; // ?? keeps the app from crashing and says if req.body is left null or undefined to return an empty object.
   const { posts } = res.locals.repos;
+  ensureBodyFields(req.body, ['title', 'body']); //reinforces required fields in a simple reusable way.
 
-  // This is the Validation portion of this function and says if these 2 are not found when creating the post, then its to return the error msg.
-  // 400 means: "The client request is missing required information."
-  if (!title || !body) {
-    return res.status(400).json({
-      error: { message: 'title and body are required' },
-    });
-  }
+  const { title, body } = req.body ?? {};
 
   const created = posts.create({ title, body }); // Creates the new post using our repository.
   return res.status(201).json({ data: created }); // Returns the created post so the client can see the new id and data.
@@ -107,13 +103,9 @@ export function deletePost(req, res) {
   const deletedPost = posts.deleteById(id); // Ask the repository for the post with this id.
   //guard to return an error if nothing was deleted and treat it like a not found error
   if (!deletedPost) {
-    return res.status(404).json({
-      error: {message: 'Post not found'},
-    });
+    throw notFound('Post not found');
   }
 
   // If delete works, we return it with a 200 (OK) response.
-  return res.status(200).json({
-    data: deletedPost
-   });
+  return res.ok(deletedPost);
   }
