@@ -67,12 +67,21 @@ Day 2 focused on strengthening the internal structure of the API by introducing 
     * unknown route detection
     * centralized error handling at the end
   * Extended the `createApp` factory to support injected config for future use
+    **Paginated `GET /posts`**
+* Added support for `limit` and `offset` query parameters to control how many posts are returned at a time
+* Introduced a shared pagination utility to safely parse and normalize query values (query params arrive as strings and can’t be trusted directly)
+* Updated the posts repository to return:
+
+  * a paginated slice of posts (`items`)
+  * the total number of posts available (`total`)
+* Updated the controller response to include pagination metadata so the client knows how much data exists and how to request the next page
 
 ### Notes / takeaways
 
 * Middleware order matters — Express runs top to bottom, and the app breaks if helpers are registered too late.
 * Separating “known HTTP errors” from unexpected errors makes controllers cleaner and easier to reason about.
-* This commit doesn’t change API behavior yet, but it sets a solid foundation for pagination and comments in upcoming steps.
-
-
+* Pagination is a server responsibility — the server decides what is safe and reasonable, even if the client requests extreme values.
+* Separating pagination logic into a utility keeps controllers focused on request/response flow instead of validation details.
+* Returning `{ items, total }` from the repo allows the API to paginate results while still exposing the full dataset size to the client.
+* Although behavior changed for `GET /posts`, the underlying data is still in-memory and resets on server restart.
 
