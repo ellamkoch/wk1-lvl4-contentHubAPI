@@ -19,7 +19,7 @@ export function respond(_req, res, next) {
    * @param {object} [meta]
    */
   res.created = (data, meta) => res.status(201).json({ data, ...(meta ? { meta } : {}) });
-    //sends a 201 created response,
+  //sends a 201 created response,
   /**
    * 204 No Content
    */

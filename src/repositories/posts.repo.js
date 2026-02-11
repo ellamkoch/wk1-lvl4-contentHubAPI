@@ -3,10 +3,9 @@
  * Day 2: We extended the in-memory repo with getById and paginated list.
  * @typedef {{ id: number, title: string, body: string }} Post
  */
-
 /**
  * @typedef {Object} PostsRepo
-  * @property {(opts?: {limit?: number, offset?: number}) => { items: Post[], total: number }} list
+ * @property {(opts?: {limit?: number, offset?: number}) => { items: Post[], total: number }} list
  * @property {(id: number) => Post|null} getById
  * @property {(id: number) => Post|null} deleteById
  * @property {(data: {title: string, body: string}) => Post} create
@@ -18,11 +17,12 @@ export function createPostsRepo() {
   const posts = []; //empty array to store the posts in.
   let nextId = 1; //ensures that every new post gets a unique id, starting @ 1.
 
-  return { //Returns a paginated slice of posts plus the total number of posts available.
-     list({ limit = 20, offset = 0} = {}) {
+  return {
+    //Returns a paginated slice of posts plus the total number of posts available.
+    list({ limit = 20, offset = 0 } = {}) {
       const total = posts.length;
 
-      // TODO: update this to the proper function
+      // TODO: update this to the proper function once we have databases
       const filteredPosts = posts.slice(offset, offset + limit);
 
       return { items: filteredPosts, total };
@@ -30,7 +30,7 @@ export function createPostsRepo() {
 
     //get a post by id
     getById(id) {
-      return posts.find((post) => post.id === id);//finds the post id that matches the id we are requesting
+      return posts.find((post) => post.id === id); //finds the post id that matches the id we are requesting
     },
 
     //This part creates a new post object with a title and body assigns it to the current unique id and adds it to the temp posts list and increases the id counter, so the next post gets a different id
@@ -47,7 +47,7 @@ export function createPostsRepo() {
       // if (posts[idx].id !== id) return false;
 
       const [deleted] = posts.splice(idx, 1); // Removes 1 post at the index
-        return deleted; // Indicates successful deletion
-    }
+      return deleted; // Indicates successful deletion
+    },
   };
 }

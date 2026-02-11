@@ -2,7 +2,7 @@
  * Lightweight HTTP error model to standardize error handling across the API.
  * Controllers can throw these errors or call `next(err)` with them.
  *
- * Error middleware now checks `instanceof HttpError`, users 'err.Status', and returns a consistent JSON shape with the following params below. 
+ * Error middleware now checks `instanceof HttpError`, users 'err.Status', and returns a consistent JSON shape with the following params below.
  *
  * Starting Day 2, all error responses follow:
  *   { error: { message, code, details? } }
@@ -17,7 +17,7 @@ export class HttpError extends Error {
    * @param {any} [details] - optional extra details for debugging/validation
    */
   constructor(status, code, message, details) {
-    super(message);// this sets the normal Error msg so logging/debugging still work like a standard error.
+    super(message); // this sets the normal Error msg so logging/debugging still work like a standard error.
     this.name = 'HttpError';
     this.status = status;
     this.code = code;

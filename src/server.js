@@ -9,7 +9,7 @@ const repos = await createRepos(); // The main app, which ensure that the repos 
 
 const app = createApp({ repos }); // This uses the createApp file we built and hooks it up to the rest of the app.
 
-// This starts the server and officially tells the internet that the app can be found at this address. 
+// This starts the server and officially tells the internet that the app can be found at this address.
 app.listen(env.PORT, () => {
   console.log(`ContentHub API listening on http://localhost:${env.PORT}`);
 });

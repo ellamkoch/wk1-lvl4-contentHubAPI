@@ -1,4 +1,3 @@
-
 /**
 This file contains the server-side logic for handling incoming HTTP Post requests within a backed API. It defines specific API endpoints for managing post resources to either read existing posts or add new ones.
 
@@ -24,17 +23,18 @@ ________________________________________________________________________________
 */
 
 import { notFound } from '#utils/httpErrors'; // helper that creates a standard 404 error object to throw
-import { ensureBodyFields} from '#utils/guard'; //guard that enforces required fields in req.body so we don't have to rewrite (!title || !body) logic every time its needed.
+import { ensureBodyFields } from '#utils/guard'; //guard that enforces required fields in req.body so we don't have to rewrite (!title || !body) logic every time its needed.
 import { parsePagination } from '#utils/pagination'; //controllers shouldn't manually parse/validate query params. this is to help normalize them into safe integers.
 
-export function listPosts(req, res) { //with pagination we need req to be read for limits/offsets in posts that are listed.
-/** res.locals is an Express-provided object that can store data for the lifetime of THIS request.
+export function listPosts(req, res) {
+  //with pagination we need req to be read for limits/offsets in posts that are listed.
+  /** res.locals is an Express-provided object that can store data for the lifetime of THIS request.
    * In our app the repos are stored on res.locals.repos. Think of repos as storage at this point,
    * Not an online github repo, but a local github repo.
-  */
+   */
   const { posts } = res.locals.repos; //gets posts repo with this request.
   /** Parses and normalizes limit/offset from the query string (req.query values are strings). Repo returns { items, total } so we can include pagination metadata.
-  */
+   */
   const { limit, offset } = parsePagination(req.query);
   const result = posts.list({ limit, offset });
 
@@ -62,12 +62,13 @@ export function getPost(req, res) {
 
   const post = posts.getById(id); // Ask the repository for the post with this id.
 
-  if (!post) { //if a post isn't found, it throws an error
+  if (!post) {
+    //if a post isn't found, it throws an error
     throw notFound('Post not found');
   }
 
   return res.ok(post); //otherwise returns the successfully found post.
-  }
+}
 /**
  * POST /posts
  * This function handles a POST request to the /posts route.
@@ -99,9 +100,8 @@ export function deletePost(req, res) {
 
   const id = Number(req.params.id); // Grab the id from the URL (req.params) and convert it to a Number.
   //validates the id and returns the 400 msg if its invalid
-    if (Number.isNaN(id) || id <= 0) {
-      return res.status(400).json({ error: { message: 'Invalid post id' },
-    });
+  if (Number.isNaN(id) || id <= 0) {
+    return res.status(400).json({ error: { message: 'Invalid post id' } });
   }
   // ask the repo to delete the post by a particular id
   const deletedPost = posts.deleteById(id); // Ask the repository for the post with this id.
@@ -112,4 +112,4 @@ export function deletePost(req, res) {
 
   // If delete works, we return it with a 200 (OK) response.
   return res.ok(deletedPost);
-  }
+}

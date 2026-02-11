@@ -6,7 +6,7 @@ import morgan from 'morgan';
 import { postsRouter } from '#routes/posts.routes';
 import { errorHandler } from '#middleware/errorHandler';
 import { notFoundHandler } from '#middleware/notFoundHandler';
-import { respond} from '#middleware/respond';
+import { respond } from '#middleware/respond';
 
 /**
  * This is a Factory pattern that creates the Express app with injected dependencies.
@@ -35,7 +35,8 @@ export function createApp({ repos, config = {} }) {
   app.use(respond);
 
   // Health check endpoint - This creates a simple message to see if the app is alive and running correctly.
-  app.get('/health', (_req, res) => { //the _ before req means that this can be ignored.
+  app.get('/health', (_req, res) => {
+    //the _ before req means that this can be ignored.
     res.json({ status: 'ok', message: 'App is running correctly' });
   });
 
