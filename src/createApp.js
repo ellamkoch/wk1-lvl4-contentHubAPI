@@ -6,7 +6,7 @@ import morgan from 'morgan';
 import { postsRouter } from '#routes/posts.routes';
 import { errorHandler } from '#middleware/errorHandler';
 import { notFoundHandler } from '#middleware/notFoundHandler';
-import { respond } from '#middleware/respond';
+import { respond } from '#middleware/responds';
 
 /**
  * This is a Factory pattern that creates the Express app with injected dependencies.

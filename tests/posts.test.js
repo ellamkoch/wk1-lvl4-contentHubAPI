@@ -25,8 +25,9 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 
-import { createApp } from '../src/createApp';
-import { createRepos } from '../src/repositories/index';
+import { createApp } from '../src/createApp.js';
+import { createRepos } from '../src/repositories/index.js';
+// import { respond } from '../src/middleware/responds.js';
 
 describe('Posts', () => {
   it('creates and lists posts with pagination meta', async () => {
@@ -36,12 +37,12 @@ describe('Posts', () => {
     await request(app).post('/posts').send({ title: 'B', body: '2' }).expect(201);
     await request(app).post('/posts').send({ title: 'C', body: '3' }).expect(201);
 
-    const res = await request(app).get('/posts?limit=2&offset=1').expect(200);
+    const res = await request(app).get('/posts?limit=2&page=1').expect(200);
 
     expect(res.body.data).toHaveLength(2);
     expect(res.body.meta.pagination.total).toBe(3);
     expect(res.body.meta.pagination.limit).toBe(2);
-    expect(res.body.meta.pagination.offset).toBe(1);
+    expect(res.body.meta.pagination.page).toBe(1);
   });
 
   it('get a post by id, or return a Post not found message', async () => {

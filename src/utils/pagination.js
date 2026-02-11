@@ -1,18 +1,20 @@
 /**
  * Parses pagination parameters from query objects.
  *
- * @param {{ limit?: string|number, offset?: string|number }} query
- * @returns {{ limit: number, offset: number }}
+ * @param {{ limit?: string|number, page?: string|number }} query
+ * @returns {{ limit: number, page: number, offset: number }}
  */
 export function parsePagination(query = {}) {
-  //accepts a query object and defaults to an empty string array so it won't crash if nothing is passed.
+  //accepts a query object and defaults to an empty object so it won't crash if nothing is passed.
   const rawLimit = query.limit ?? 20; //if limit is missing, default to 20
-  const rawOffset = query.offset ?? 0; // if offset is missing, default to 0
+  const rawPage = query.page ?? 1; // if page is missing, default to 0
 
   const limit = clampInt(rawLimit, 1, 100, 20); //limits, min. of 1 100 max, w/ a fallback of 20
-  const offset = clampInt(rawOffset, 0, Number.MAX_SAFE_INTEGER, 0); //min of 0, max is a very large integer, 0 is the fallback
+  const page = clampInt(rawPage, 1, Number.MAX_SAFE_INTEGER, 1); //min of 1, max is a very large integer, 1 is the fallback
 
-  return { limit, offset }; //returns numbers that the controller or repo can use
+  const offset = (page - 1) * limit;
+
+  return { limit, page, offset }; //returns numbers that the controller or repo can use
 }
 
 /**

@@ -103,6 +103,106 @@ Day 2 focused on strengthening the internal structure of the API by introducing 
     * attempting to comment on a missing post returns a standardized `404`
   * Updated existing post tests to reflect pagination metadata and error envelope changes.
 
+### Assignments for Day 2
+
+As part of the Day 2 homework, I extended the API further by adjusting pagination strategy and adding conditional related data loading.
+
+#### 1. Alternative Pagination Strategy (Page-Based)
+
+Originally, pagination used `limit` and `offset` directly. For the assignment, I updated the API to support **page-based pagination** , which is more intuitive from a client perspective.
+
+* Clients now request:
+
+  * `GET /posts?limit=2&page=1`
+* The pagination utility:
+
+  * Parses and normalizes `limit` and `page`
+  * Converts `page` into an internal `offset`
+  * Ensures values are clamped and safe
+* The repository still slices using `limit` and `offset`
+* The response includes:
+
+  ```
+  {
+     data: [...],
+     meta: {
+        pagination: {
+           limit: 2,
+           page: 1,
+           total: 3
+        }
+     }
+  }
+  ```
+
+This keeps:
+
+* The **controller responsible for pagination strategy**
+* The **repository responsible only for slicing data**
+
+The data layer remains unaware of “pages” and continues to work with offsets internally.
+
+#### 2. Optional Related Data via Query Param
+
+Added support for conditionally including comments when fetching a single post:
+
+* `GET /posts/:id`
+* `GET /posts/:id?includeComments=true`
+
+If `includeComments=true`:
+
+* The controller fetches comments scoped to that post
+* Comments are attached to the response under a `comments` field
+
+If not provided:
+
+* The API returns only the post
+
+This keeps:
+
+* The base endpoint lightweight by default
+* Related data loading explicit and controlled by the client
+
+It also reinforces separation of concerns:
+
+* Posts repo handles posts
+* Comments repo handles comments
+* Controller orchestrates relationships between them
+
+### Testing (Expanded)
+
+#### Automated Testing
+
+* All tests pass using **Vitest + Supertest**
+* Updated test files to reflect:
+  * Standardized response envelopes
+  * Page-based pagination (`limit` + `page`)
+  * Error codes (`not_found`, `bad_request`)
+* Verified:
+  * Pagination metadata
+  * Nested comments behavior
+  * 404 handling for missing parent posts
+  * 400 handling for invalid ids
+
+#### Manual Verification (Postman)
+
+Performed additional manual checks in Postman to confirm real-world behavior:
+
+* Created posts and verified pagination works with `page`
+* Created nested comments under valid posts
+* Confirmed `404` when commenting on missing posts
+* Verified:
+  * `GET /posts/:id?includeComments=true` attaches comments
+  * `GET /posts/:id` does not include comments by default
+  * Invalid ids return `400 bad_request`
+  * Missing resources return `404 not_found`
+
+This confirms:
+
+* Tests reflect actual runtime behavior
+* Middleware, controllers, and repos are wired correctly
+* Response formatting is consistent across endpoints
+
 ### Notes / takeaways
 
 - Middleware order matters — Express runs top to bottom, and the app breaks if helpers are registered too late.
@@ -111,4 +211,10 @@ Day 2 focused on strengthening the internal structure of the API by introducing 
 - Separating pagination logic into a utility keeps controllers focused on request/response flow instead of validation details.
 - Returning `{ items, total }` from the repo allows the API to paginate results while still exposing the full dataset size to the client.
 - Although behavior changed for `GET /posts`, the underlying data is still in-memory and resets on server restart.
+- Page-based pagination feels more natural for clients, but internally still translates to offset logic.
+- Controllers should coordinate related data. Repositories should stay focused on their own resource.
+- Throwing typed errors like `badRequest` and `notFound` keeps the API predictable and consistent.
+- Automated tests confirm correctness, but manual testing in Postman builds confidence that the API behaves properly in real usage.
+- Small validation changes can break multiple tests at once. That’s not a bad thing — it proves the tests are actually protecting behavior.
+
 

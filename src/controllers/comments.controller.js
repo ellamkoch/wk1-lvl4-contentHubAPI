@@ -17,12 +17,12 @@ export function listCommentsForPost(req, res) {
   // Clear teaching step: ensure post exists before listing comments. Need this guard in place before the return to help prevent app crashes as the endpoint must behave different if posts exists or not.
   ensure(posts.getById(postId), notFound('Post not found')); //if posts exist it returns an empty list. if post does not exist, returns 404 msg of post not found.
   //how data is fetched and shaped into the response
-  const { limit, offset } = parsePagination(req.query); // grabs from the repos and parses the pagination
-  const result = comments.listForPost(postId, { limit, offset }); //calls the repo
+  const { limit, page } = parsePagination(req.query); // grabs from the repos and parses the pagination
+  const result = comments.listForPost(postId, { limit, page }); //calls the repo
 
   return res.ok(result.items, {
     //returns data + meta with our response helper, 'res.*', in the middleware
-    pagination: { limit, offset, total: result.total },
+    pagination: { limit, page, total: result.total },
   });
 }
 
