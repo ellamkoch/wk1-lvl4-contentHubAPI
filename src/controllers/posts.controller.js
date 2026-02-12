@@ -13,6 +13,11 @@ IMPORTANT CONTEXT (Express / HTTP):
     - send a response back to the client (res)
 
   It should NOT worry about where data is stored long-term. That’s the repository’s job.
+
+ Day 3 note:
+  - Some routes are protected by requireAuth middleware.
+  - For protected routes, req.user is available (set from the JWT) and is used for ownership (authorId).
+
 ______________________________________________________________________________________________________________________
  * GET /posts - This function handles a GET request to the /posts route. A GET request is used to retrieve data.
   User Involvement:
@@ -22,7 +27,7 @@ ________________________________________________________________________________
     - User can request a page of posts using limit + page, while offset is computed internally
 */
 
-import { notFound, badRequest } from '#utils/httpErrors'; // helper that creates a standard 404 error object to throw
+import { notFound, forbidden } from '#utils/httpErrors'; // helpers that creates a standard 404 error object to throw
 import { ensureBodyFields } from '#utils/guard'; //guard that enforces required fields in req.body so we don't have to rewrite (!title || !body) logic every time its needed.
 import { parsePagination } from '#utils/pagination'; //controllers shouldn't manually parse/validate query params. this is to help normalize them into safe integers.
 
@@ -33,13 +38,15 @@ export function listPosts(req, res) {
    * Repo here means data repository (our in-memory data layer), not a GitHub repo.
    */
   const { posts } = res.locals.repos; //gets posts repo with this request.
-  /** Pulls pagination info from the query string (?limit=&page=). Query params always come in as strings.
-* parsePagination handles:
-* - converting strings to numbers
-* - applying default values
-* - clamping to safe ranges
-* - translating page-based pagination (what the client thinks in) into an offset (what the repo actually needs to slice data)
-*/
+/**
+ * Pulls pagination info from the query string (?limit=&page=).
+ * parsePagination handles:
+ * - converting strings to numbers
+ * - applying default values
+ * - clamping to safe ranges
+ * - computing offset from page/limit
+ */
+
   const { limit, page, offset } = parsePagination(req.query);
 
 /** This asks the posts repository for a specific "window" of data. The repository does NOT care about pages or query params.
@@ -57,6 +64,8 @@ export function listPosts(req, res) {
 
 /**  Get /posts/:id
   This function handles a GET request to /posts/:id (a single post by id). I.e.,  GET /posts/3
+  includeComments is optional: GET /posts/:id?includeComments=true
+
 IMPORTANT CONTEXT (Route Params):
 - ":id" is a route parameter. Express parses it from the URL and stores it on "req.params.id"
 - "req.params""" values are always strings, so we convert the id to a Number to match how our repository stores ids.
@@ -88,13 +97,16 @@ export function getPost(req, res) {
   return res.ok(post); //otherwise returns the successfully found post, now with comments it may have attached to it..
 }
 /**
- * POST /posts
+ * POST /posts - requires auth now
  * This function handles a POST request to the /posts route.
  * A POST request is used to create new data.
+ * Posts now track ownership thanks to authorId.
  *
  * IMPORTANT CONTEXT (Request Body):
-- The client sends data in the request body (req.body).
-- req.body is only available if we have JSON middleware enabled (express.json()).
+  - The client sends data in the request body (req.body).
+  - req.body is only available if we have JSON middleware enabled (express.json()).
+  - req.user is set by requireAuth middleware (decoded from JWT)
+
  *
  User involvement:
   - The user submits a new post (title + body) from their app.
@@ -109,25 +121,45 @@ export function createPost(req, res) {
 
   const { title, body } = req.body ?? {};
 
-  const created = posts.create({ title, body }); // Creates the new post using our repository.
+  const created = posts.create({ title, body, authorId: req.user.id }); // Creates the new post using our repository, tagging it with the authorId of the user that created it.
   return res.created(created); // Returns the created post so the client can see the new id and data.
+}
+
+/**
+ * PUT /posts/:id (AUTH + OWNER)
+ * Repo returns: updated post | null (not found) | 'forbidden' (wrong owner)
+ */
+export function updatePost(req, res) {
+  const { posts } = res.locals.repos;
+  const id = Number(req.params.id);
+
+  ensureBodyFields(req.body, ['title', 'body']);
+
+  const updated = posts.update({
+    id,
+    title: req.body.title,
+    body: req.body.body,
+    authorId: req.user.id,
+  });
+
+  if (updated === null) throw notFound('Post not found');
+  if (updated === 'forbidden') throw forbidden('You do not own this post');
+
+  return res.ok(updated);
 }
 
 export function deletePost(req, res) {
   const { posts } = res.locals.repos;
 
   const id = Number(req.params.id); // Grab the id from the URL (req.params) and convert it to a Number.
-  //validates the id and returns the 400 msg if its invalid
-  if (Number.isNaN(id) || id <= 0) {
-    throw badRequest('Invalid post id');
-  }
-  // ask the repo to delete the post by a particular id
-  const deletedPost = posts.deleteById(id); // Ask the repository for the post with this id.
-  //guard to return an error if nothing was deleted and treat it like a not found error
-  if (!deletedPost) {
-    throw notFound('Post not found');
-  }
 
-  // If delete works, we return it with a 200 (OK) response.
-  return res.ok(deletedPost);
+  // ask the repo to delete the post by a particular id
+  const result = posts.delete({ id, authorId: req.user.id }); // Ask repo to delete this post if the current user owns it
+
+  //guards to return an error if nothing was deleted and treat it like a not found error or a forbidden error
+  if (result === null) throw notFound('Post not found');
+  if (result === 'forbidden') throw forbidden('You do not own this post');
+
+  // If delete works, we return a 204 response to say the request succeeded.
+  return res.noContent();
 }

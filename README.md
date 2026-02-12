@@ -217,4 +217,118 @@ This confirms:
 - Automated tests confirm correctness, but manual testing in Postman builds confidence that the API behaves properly in real usage.
 - Small validation changes can break multiple tests at once. That’s not a bad thing — it proves the tests are actually protecting behavior.
 
+## Day 3
+
+Day 3 introduced authentication and ownership to the API. Up until this point, anyone could create, update, or delete resources. Today’s work added JWT-based authentication and enforced resource ownership at the repository level.
+
+This marks the transition from a simple CRUD API to something that behaves more like a real backend system.
+
+### What I added
+
+#### Authentication (JWT-based)
+
+* Added `POST /auth/register`
+  * Accepts `email`, `name`, and `password`
+  * Hashes the password using `bcryptjs`
+  * Stores only the password hash (never plaintext)
+  * Returns a signed JWT on successful registration
+* Added `POST /auth/login`
+  * Validates credentials
+  * Verifies password using bcrypt
+  * Returns a signed JWT if credentials are valid
+  * Returns a generic `401 unauthorized` for invalid credentials
+
+#### JWT Utilities
+
+* Created shared JWT utilities:
+  * `signToken` — signs a token with:
+    * `sub` (user id)
+    * expiration (`2h`)
+  * `verifyToken` — verifies and decodes the token payload
+* JWT secret is:
+  * Loaded from environment variables
+  * Validated during server startup
+  * Injected into the app via configuration
+
+#### Password Hashing
+
+* Introduced password utilities:
+  * `hashPassword`
+  * `verifyPassword`
+* Uses `bcryptjs`
+* Passwords are salted and hashed before storage
+* Plaintext passwords are never stored in memory
+
+Installed dependencies:
+
+`npm install jsonwebtoken bcryptjs`
+
+### Route Protection (Middleware)
+
+* Created `requireAuth` middleware
+  * Extracts Bearer token from the `Authorization` header
+  * Verifies the token using the JWT secret
+  * Attaches the decoded user id to `req.user`
+  * Rejects:
+    * Missing tokens
+    * Invalid tokens
+    * Malformed headers
+
+Protected routes now include:
+
+* `POST /posts`
+* `PUT /posts/:id`
+* `DELETE /posts/:id`
+* `POST /posts/:postId/comments`
+* `PUT /comments/:id`
+* `DELETE /comments/:id`
+
+### Ownership Enforcement
+
+Posts and comments now include:
+`authorId`
+
+Ownership rules are enforced inside the repository layer:
+
+* If a resource does not exist → return `null`
+* If the resource exists but belongs to another user → return `'forbidden'`
+* If the requesting user is the owner → perform update/delete
+
+Controllers translate repository return values into HTTP responses:
+
+* `null` → `404 not_found`
+* `'forbidden'` → `403 forbidden`
+* success → `200` or `204`
+
+This preserves clear separation of concerns:
+
+* Authentication handled in middleware
+* Ownership enforced in the repository
+* HTTP responses shaped in the controller
+
+### Structural Updates
+
+* Added a `users` repository (in-memory)
+* Updated `createRepos()` to inject:
+  * `posts`
+  * `comments`
+  * `users`
+* Updated `createApp()` to accept injected configuration
+* Updated `server.js` to:
+  * Validate environment variables
+  * Inject `JWT_SECRET` into app config
+
+This completes the dependency chain:
+
+Environment → App Config → Middleware → Controllers → Repositories
+
+### Notes / Takeaways
+
+* JWT authentication requires consistent secret handling across the application.
+* Middleware should handle authentication. Repositories should remain unaware of tokens.
+* Ownership enforcement belongs in the data layer, not in controllers.
+* Returning special values (`null`, `'forbidden'`) keeps repositories HTTP-agnostic.
+* Controllers are responsible for translating repo results into HTTP responses.
+* Introducing authentication changes method contracts and responsibilities.
+* Validating environment configuration at startup prevents subtle runtime failures.
 

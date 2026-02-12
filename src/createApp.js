@@ -3,10 +3,13 @@ import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
-import { postsRouter } from '#routes/posts.routes';
 import { errorHandler } from '#middleware/errorHandler';
 import { notFoundHandler } from '#middleware/notFoundHandler';
 import { respond } from '#middleware/responds';
+
+import { postsRouter } from '#routes/posts.routes';
+import { authRouter } from '#routes/auth.routes';
+import { commentsRouter } from '#routes/comments.routes';
 
 /**
  * This is a Factory pattern that creates the Express app with injected dependencies.
@@ -48,6 +51,8 @@ export function createApp({ repos, config = {} }) {
 
   // Routes - this connects the postRouter to the main app
   app.use('/posts', postsRouter);
+  app.use('/auth', authRouter);
+  app.use('/comments', commentsRouter);
 
   //This catches not defined routes with a specific message. This must be listed after routes so it only runs when no route matches (i.e., catch all for 404s). Otherwise every request would be a 404 immediately.
   app.use(notFoundHandler);

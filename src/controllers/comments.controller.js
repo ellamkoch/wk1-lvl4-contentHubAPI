@@ -1,9 +1,12 @@
 /**
- * This controller has 2 main jobs:
- *  - Make sure the parent post exists (because comments are “nested under posts”)
-    - Delegate actual data work to the comments repo (list + create)
+ * This controller’s jobs:
+ * - Enforce nesting rules (post must exist for /posts/:postId/comments)
+ * - Validate request bodies (ensureBodyFields)
+ * - Attach ownership (authorId from req.user) when creating/updating/deleting
+ * - Delegate data work to the comments repo and translate repo results into typed HTTP errors
  */
-import { notFound } from '#utils/httpErrors';
+
+import { notFound, forbidden } from '#utils/httpErrors';
 import { ensureBodyFields, ensure } from '#utils/guard';
 import { parsePagination } from '#utils/pagination';
 
@@ -14,10 +17,11 @@ export function listCommentsForPost(req, res) {
   const { posts, comments } = res.locals.repos;
   const postId = Number(req.params.postId);
 
-  // Clear teaching step: ensure post exists before listing comments. Need this guard in place before the return to help prevent app crashes as the endpoint must behave different if posts exists or not.
-  ensure(posts.getById(postId), notFound('Post not found')); //if posts exist it returns an empty list. if post does not exist, returns 404 msg of post not found.
+  // Clear teaching step: ensure post exists before listing comments. Ensures parent post exists so this nested endpoint can return 404 if the post doesn't exist.
+  ensure(posts.getById(postId), notFound('Post not found')); // If the post exists, we can return its comments (possibly empty). If not, throw 404.
+
   //how data is fetched and shaped into the response
-  const { limit, page } = parsePagination(req.query); // grabs from the repos and parses the pagination
+  const { limit, page } = parsePagination(req.query); // Parses limit/page from req.query and clamps them safely.
   const result = comments.listForPost(postId, { limit, page }); //calls the repo
 
   return res.ok(result.items, {
@@ -27,7 +31,7 @@ export function listCommentsForPost(req, res) {
 }
 
 /**
- * POST /posts/:postId/comments
+ * POST /posts/:postId/comments (auth required)
  */
 export function createCommentForPost(req, res) {
   const { posts, comments } = res.locals.repos;
@@ -40,7 +44,45 @@ export function createCommentForPost(req, res) {
   const created = comments.create({
     postId,
     body: req.body.body,
+    authorId: req.user.id,
   });
 
   return res.created(created);
+}
+
+/**
+ * PUT /comments/:id (AUTH + OWNER)
+ */
+export function updateComment(req, res) {
+  const { comments } = res.locals.repos;
+  const id = Number(req.params.id);
+
+  ensureBodyFields(req.body, ['body']);
+
+  //repo tries to update only if authorId matches. repo returns a special value if not owner
+  const updated = comments.update({
+    id,
+    body: req.body.body,
+    authorId: req.user.id,
+  });
+
+  if (updated === null) throw notFound('Comment not found');
+  if (updated === 'forbidden') throw forbidden('You do not own this comment');
+
+  return res.ok(updated);
+}
+
+/**
+ * DELETE /comments/:id (AUTH + OWNER)
+ */
+export function deleteComment(req, res) {
+  const { comments } = res.locals.repos;
+  const id = Number(req.params.id);
+
+  const result = comments.delete({ id, authorId: req.user.id });
+
+  if (result === null) throw notFound('Comment not found');
+  if (result === 'forbidden') throw forbidden('You do not own this comment');
+
+  return res.noContent();
 }
