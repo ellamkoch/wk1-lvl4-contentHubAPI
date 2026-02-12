@@ -16,13 +16,11 @@
  * They do NOT test protected routes or ownership logic.
  */
 
-
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 
 import { createApp } from '../src/createApp.js';
 import { createRepos } from '../src/repositories/index.js';
-
 
 describe('Authentication', () => {
   it('registers a new user and logs in successfully', async () => {

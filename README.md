@@ -42,12 +42,11 @@ Day 2 focused on strengthening the internal structure of the API by introducing 
 ### What I added
 
 - **Centralized HTTP error handling**
-
   - Introduced a lightweight `HttpError` model
   - Controllers now throw typed errors (ex: `notFound`, `badRequest`)
   - A central error handler formats all error responses consistently
-- **Global response helpers**
 
+- **Global response helpers**
   - Added middleware to attach helpers like:
     - `res.ok`
     - `res.created`
@@ -55,12 +54,12 @@ Day 2 focused on strengthening the internal structure of the API by introducing 
   - All successful responses now follow a consistent shape:
     - `{ data: ... }`
     - optional `{ meta: ... }` for future pagination
-- **Catch-all 404 handler**
 
+- **Catch-all 404 handler**
   - Added a `notFoundHandler` middleware
   - Ensures unknown routes return a clean JSON 404 instead of Express defaults
-- **Updated app wiring**
 
+- **Updated app wiring**
   - Ensured middleware order supports:
     - response helpers before routes
     - route handling
@@ -68,12 +67,13 @@ Day 2 focused on strengthening the internal structure of the API by introducing 
     - centralized error handling at the end
   - Extended the `createApp` factory to support injected config for future use
     **Paginated `GET /posts`**
+
 - Added support for `limit` and `offset` query parameters to control how many posts are returned at a time
 - Introduced a shared pagination utility to safely parse and normalize query values (query params arrive as strings and can’t be trusted directly)
 - Updated the posts repository to return:
-
   - a paginated slice of posts (`items`)
   - the total number of posts available (`total`)
+
 - Updated the controller response to include pagination metadata so the client knows how much data exists and how to request the next page
 
 * **Added comments as a nested resource under posts**
@@ -112,13 +112,13 @@ As part of the Day 2 homework, I extended the API further by adjusting paginatio
 Originally, pagination used `limit` and `offset` directly. For the assignment, I updated the API to support **page-based pagination** , which is more intuitive from a client perspective.
 
 - Clients now request:
-
   - `GET /posts?limit=2&page=1`
-- The pagination utility:
 
+- The pagination utility:
   - Parses and normalizes `limit` and `page`
   - Converts `page` into an internal `offset`
   - Ensures values are clamped and safe
+
 - The repository still slices using `limit` and `offset`
 - The response includes:
 
@@ -337,13 +337,13 @@ With authentication introduced, existing tests required updates to reflect the n
 
 #### Authentication Test File
 
-* Added a dedicated `auth.test.js`
-* Verifies:
-  * A user can register successfully
-  * Passwords are hashed before storage
-  * A user can log in with valid credentials
-  * A JWT is returned on both register and login
-* Uses an injected test JWT secret to keep behavior predictable
+- Added a dedicated `auth.test.js`
+- Verifies:
+  - A user can register successfully
+  - Passwords are hashed before storage
+  - A user can log in with valid credentials
+  - A JWT is returned on both register and login
+- Uses an injected test JWT secret to keep behavior predictable
 
 This confirms the authentication flow works end-to-end.
 
@@ -351,14 +351,14 @@ This confirms the authentication flow works end-to-end.
 
 Because `POST /posts` is now protected:
 
-* Updated tests to:
-  * Register a test user
-  * Retrieve a valid JWT
-  * Include `Authorization: Bearer <token>` header when creating posts
-* Verified:
-  * Public routes (`GET /posts`, `GET /posts/:id`) remain accessible
-  * Pagination behavior remains unchanged
-  * Protected routes correctly require authentication
+- Updated tests to:
+  - Register a test user
+  - Retrieve a valid JWT
+  - Include `Authorization: Bearer <token>` header when creating posts
+- Verified:
+  - Public routes (`GET /posts`, `GET /posts/:id`) remain accessible
+  - Pagination behavior remains unchanged
+  - Protected routes correctly require authentication
 
 This ensures route protection was added without breaking existing behavior.
 
@@ -366,13 +366,13 @@ This ensures route protection was added without breaking existing behavior.
 
 Since nested comment creation is now protected:
 
-* Updated comment creation tests to:
-  * Register a user
-  * Send JWT in Authorization header
-* Verified:
-  * Comments can be created under an existing post
-  * Attempting to comment on a missing post still returns `404`
-  * Authentication middleware runs before route logic
+- Updated comment creation tests to:
+  - Register a user
+  - Send JWT in Authorization header
+- Verified:
+  - Comments can be created under an existing post
+  - Attempting to comment on a missing post still returns `404`
+  - Authentication middleware runs before route logic
 
 These updates confirm that nested resources correctly integrate with authentication and ownership enforcement.
 
@@ -391,4 +391,3 @@ These updates confirm that nested resources correctly integrate with authenticat
 - Separating formatting commits from logic commits makes history easier to follow.
 - Updating repositories requires updating test expectations to match new data contracts.
 - Middleware order continues to matter — authentication must run before controllers execute.
-

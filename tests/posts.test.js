@@ -16,7 +16,6 @@
  * Ownership enforcement (update/delete) is validated separately.
  */
 
-
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 
@@ -33,9 +32,8 @@ async function registerAndGetToken(app) {
   return res.body.data.token;
 }
 
-
 describe('Posts', () => {
-   it('create post requires auth', async () => {
+  it('create post requires auth', async () => {
     const app = createApp({
       repos: await createRepos(),
       config: {
@@ -47,7 +45,7 @@ describe('Posts', () => {
   });
 
   it('creates and lists posts with pagination meta', async () => {
-   const app = createApp({
+    const app = createApp({
       repos: await createRepos(),
       config: {
         JWT_SECRET: 'test-secret',
@@ -56,7 +54,7 @@ describe('Posts', () => {
 
     const token = await registerAndGetToken(app);
 
-     await request(app)
+    await request(app)
       .post('/posts')
       .set('Authorization', `Bearer ${token}`)
       .send({ title: 'A', body: '1' })
@@ -106,10 +104,18 @@ describe('Posts', () => {
 
   //if I was to split out the get post by id and a not found msg tests
   it('gets a post by id (200)', async () => {
-    const app = createApp({ repos: await createRepos() });
+    const app = createApp({
+      repos: await createRepos(),
+      config: { JWT_SECRET: 'test-secret' },
+    });
 
-    // Arrange: create a post so we have a real id
-    const created = await request(app).post('/posts').send({ title: 'A', body: '1' }).expect(201);
+    const token = await registerAndGetToken(app);
+
+    const created = await request(app)
+      .post('/posts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'A', body: '1' })
+      .expect(201);
 
     const id = created.body.data.id;
 
@@ -127,32 +133,54 @@ describe('Posts', () => {
   });
 
   //delete post by id success
-  it('delete a post by id with success (200)', async () => {
-    const app = createApp({ repos: await createRepos() });
+  it('delete a post by id with success (204)', async () => {
+    const app = createApp({
+      repos: await createRepos(),
+      config: { JWT_SECRET: 'test-secret' },
+    });
 
-    //create a post first so we have post by id to delete by
-    const created = await request(app).post('/posts').send({ title: 'A', body: '1' }).expect(201);
+    const token = await registerAndGetToken(app);
+
+    const created = await request(app)
+      .post('/posts')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'A', body: '1' })
+      .expect(201);
 
     const id = created.body.data.id;
 
-    //Delete it by id an return a 200 for success
-    const delRes = await request(app).delete(`/posts/${id}`).expect(200);
-    expect(delRes.body.data.id).toBe(id);
+    await request(app).delete(`/posts/${id}`).set('Authorization', `Bearer ${token}`).expect(204);
   });
 
   it('returns 404 when a post id that the user tries to delete is not found', async () => {
-    const app = createApp({ repos: await createRepos() });
+    const app = createApp({
+      repos: await createRepos(),
+      config: { JWT_SECRET: 'test-secret' },
+    });
 
-    // Act + Assert: try to delete an id that doesn't exist
-    const delRes = await request(app).delete('/posts/9999').expect(404);
+    const token = await registerAndGetToken(app);
+
+    const delRes = await request(app)
+      .delete('/posts/9999')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404);
+
     expect(delRes.body.error.code).toBe('not_found');
   });
 
-  it('returns 400 when a post id is invalid', async () => {
-    const app = createApp({ repos: await createRepos() });
+  it('returns 404 when a post id is invalid (treated as not found)', async () => {
+    const app = createApp({
+      repos: await createRepos(),
+      config: { JWT_SECRET: 'test-secret' },
+    });
 
-    // Act + Assert: try to delete an id that is invalid
-    const delRes = await request(app).delete('/posts/0').expect(400);
-    expect(delRes.body.error.code).toBe('bad_request');
+    const token = await registerAndGetToken(app);
+
+    const delRes = await request(app)
+      .delete('/posts/0')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404);
+
+    expect(delRes.body.error.code).toBe('not_found');
   });
 });
