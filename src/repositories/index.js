@@ -18,7 +18,7 @@ export async function createRepos() {
   // (you can also use a direct import if you prefer).
   const { createPostsRepo } = await import('./posts.repo.js');
   const { createCommentsRepo } = await import('./comments.repo.js');
-  const { createUsersRepo } = await import('./users.repo.js')
+  const { createUsersRepo } = await import('./users.repo.js');
 
   return {
     posts: createPostsRepo(),

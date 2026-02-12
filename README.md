@@ -77,31 +77,31 @@ Day 2 focused on strengthening the internal structure of the API by introducing 
 - Updated the controller response to include pagination metadata so the client knows how much data exists and how to request the next page
 
 * **Added comments as a nested resource under posts**
-  * Implemented:
-    * `GET /posts/:postId/comments`
-    * `POST /posts/:postId/comments`
-  * Comments are scoped to a parent post and cannot exist independently.
-  * Requests for comments on a missing post return a clean `404`.
+  - Implemented:
+    - `GET /posts/:postId/comments`
+    - `POST /posts/:postId/comments`
+  - Comments are scoped to a parent post and cannot exist independently.
+  - Requests for comments on a missing post return a clean `404`.
 * **Comments repository**
-  * Added a new in-memory `comments` repository.
-  * Stores comments with:
-    * a unique id
-    * the parent `postId`
-    * the comment body
-  * Supports listing comments per post and creating new comments.
+  - Added a new in-memory `comments` repository.
+  - Stores comments with:
+    - a unique id
+    - the parent `postId`
+    - the comment body
+  - Supports listing comments per post and creating new comments.
 * **Comments controller**
-  * Verifies the parent post exists before listing or creating comments.
-  * Validates required request body fields.
-  * Uses the same response helpers and error handling as posts to keep API behavior consistent.
+  - Verifies the parent post exists before listing or creating comments.
+  - Validates required request body fields.
+  - Uses the same response helpers and error handling as posts to keep API behavior consistent.
 * **Routing updates**
-  * Nested comment routes directly inside the posts router.
-  * Keeps the URL structure clear and reinforces the relationship between posts and comments.
+  - Nested comment routes directly inside the posts router.
+  - Keeps the URL structure clear and reinforces the relationship between posts and comments.
 * **Testing**
-  * Added tests to verify:
-    * comments can be created for an existing post
-    * comments can be listed per post
-    * attempting to comment on a missing post returns a standardized `404`
-  * Updated existing post tests to reflect pagination metadata and error envelope changes.
+  - Added tests to verify:
+    - comments can be created for an existing post
+    - comments can be listed per post
+    - attempting to comment on a missing post returns a standardized `404`
+  - Updated existing post tests to reflect pagination metadata and error envelope changes.
 
 ### Assignments for Day 2
 
@@ -111,16 +111,16 @@ As part of the Day 2 homework, I extended the API further by adjusting paginatio
 
 Originally, pagination used `limit` and `offset` directly. For the assignment, I updated the API to support **page-based pagination** , which is more intuitive from a client perspective.
 
-* Clients now request:
+- Clients now request:
 
-  * `GET /posts?limit=2&page=1`
-* The pagination utility:
+  - `GET /posts?limit=2&page=1`
+- The pagination utility:
 
-  * Parses and normalizes `limit` and `page`
-  * Converts `page` into an internal `offset`
-  * Ensures values are clamped and safe
-* The repository still slices using `limit` and `offset`
-* The response includes:
+  - Parses and normalizes `limit` and `page`
+  - Converts `page` into an internal `offset`
+  - Ensures values are clamped and safe
+- The repository still slices using `limit` and `offset`
+- The response includes:
 
   ```
   {
@@ -137,8 +137,8 @@ Originally, pagination used `limit` and `offset` directly. For the assignment, I
 
 This keeps:
 
-* The **controller responsible for pagination strategy**
-* The **repository responsible only for slicing data**
+- The **controller responsible for pagination strategy**
+- The **repository responsible only for slicing data**
 
 The data layer remains unaware of “pages” and continues to work with offsets internally.
 
@@ -146,62 +146,62 @@ The data layer remains unaware of “pages” and continues to work with offsets
 
 Added support for conditionally including comments when fetching a single post:
 
-* `GET /posts/:id`
-* `GET /posts/:id?includeComments=true`
+- `GET /posts/:id`
+- `GET /posts/:id?includeComments=true`
 
 If `includeComments=true`:
 
-* The controller fetches comments scoped to that post
-* Comments are attached to the response under a `comments` field
+- The controller fetches comments scoped to that post
+- Comments are attached to the response under a `comments` field
 
 If not provided:
 
-* The API returns only the post
+- The API returns only the post
 
 This keeps:
 
-* The base endpoint lightweight by default
-* Related data loading explicit and controlled by the client
+- The base endpoint lightweight by default
+- Related data loading explicit and controlled by the client
 
 It also reinforces separation of concerns:
 
-* Posts repo handles posts
-* Comments repo handles comments
-* Controller orchestrates relationships between them
+- Posts repo handles posts
+- Comments repo handles comments
+- Controller orchestrates relationships between them
 
 ### Testing (Expanded)
 
 #### Automated Testing
 
-* All tests pass using **Vitest + Supertest**
-* Updated test files to reflect:
-  * Standardized response envelopes
-  * Page-based pagination (`limit` + `page`)
-  * Error codes (`not_found`, `bad_request`)
-* Verified:
-  * Pagination metadata
-  * Nested comments behavior
-  * 404 handling for missing parent posts
-  * 400 handling for invalid ids
+- All tests pass using **Vitest + Supertest**
+- Updated test files to reflect:
+  - Standardized response envelopes
+  - Page-based pagination (`limit` + `page`)
+  - Error codes (`not_found`, `bad_request`)
+- Verified:
+  - Pagination metadata
+  - Nested comments behavior
+  - 404 handling for missing parent posts
+  - 400 handling for invalid ids
 
 #### Manual Verification (Postman)
 
 Performed additional manual checks in Postman to confirm real-world behavior:
 
-* Created posts and verified pagination works with `page`
-* Created nested comments under valid posts
-* Confirmed `404` when commenting on missing posts
-* Verified:
-  * `GET /posts/:id?includeComments=true` attaches comments
-  * `GET /posts/:id` does not include comments by default
-  * Invalid ids return `400 bad_request`
-  * Missing resources return `404 not_found`
+- Created posts and verified pagination works with `page`
+- Created nested comments under valid posts
+- Confirmed `404` when commenting on missing posts
+- Verified:
+  - `GET /posts/:id?includeComments=true` attaches comments
+  - `GET /posts/:id` does not include comments by default
+  - Invalid ids return `400 bad_request`
+  - Missing resources return `404 not_found`
 
 This confirms:
 
-* Tests reflect actual runtime behavior
-* Middleware, controllers, and repos are wired correctly
-* Response formatting is consistent across endpoints
+- Tests reflect actual runtime behavior
+- Middleware, controllers, and repos are wired correctly
+- Response formatting is consistent across endpoints
 
 ### Notes / takeaways
 
@@ -227,37 +227,37 @@ This marks the transition from a simple CRUD API to something that behaves more 
 
 #### Authentication (JWT-based)
 
-* Added `POST /auth/register`
-  * Accepts `email`, `name`, and `password`
-  * Hashes the password using `bcryptjs`
-  * Stores only the password hash (never plaintext)
-  * Returns a signed JWT on successful registration
-* Added `POST /auth/login`
-  * Validates credentials
-  * Verifies password using bcrypt
-  * Returns a signed JWT if credentials are valid
-  * Returns a generic `401 unauthorized` for invalid credentials
+- Added `POST /auth/register`
+  - Accepts `email`, `name`, and `password`
+  - Hashes the password using `bcryptjs`
+  - Stores only the password hash (never plaintext)
+  - Returns a signed JWT on successful registration
+- Added `POST /auth/login`
+  - Validates credentials
+  - Verifies password using bcrypt
+  - Returns a signed JWT if credentials are valid
+  - Returns a generic `401 unauthorized` for invalid credentials
 
 #### JWT Utilities
 
-* Created shared JWT utilities:
-  * `signToken` — signs a token with:
-    * `sub` (user id)
-    * expiration (`2h`)
-  * `verifyToken` — verifies and decodes the token payload
-* JWT secret is:
-  * Loaded from environment variables
-  * Validated during server startup
-  * Injected into the app via configuration
+- Created shared JWT utilities:
+  - `signToken` — signs a token with:
+    - `sub` (user id)
+    - expiration (`2h`)
+  - `verifyToken` — verifies and decodes the token payload
+- JWT secret is:
+  - Loaded from environment variables
+  - Validated during server startup
+  - Injected into the app via configuration
 
 #### Password Hashing
 
-* Introduced password utilities:
-  * `hashPassword`
-  * `verifyPassword`
-* Uses `bcryptjs`
-* Passwords are salted and hashed before storage
-* Plaintext passwords are never stored in memory
+- Introduced password utilities:
+  - `hashPassword`
+  - `verifyPassword`
+- Uses `bcryptjs`
+- Passwords are salted and hashed before storage
+- Plaintext passwords are never stored in memory
 
 Installed dependencies:
 
@@ -265,23 +265,23 @@ Installed dependencies:
 
 ### Route Protection (Middleware)
 
-* Created `requireAuth` middleware
-  * Extracts Bearer token from the `Authorization` header
-  * Verifies the token using the JWT secret
-  * Attaches the decoded user id to `req.user`
-  * Rejects:
-    * Missing tokens
-    * Invalid tokens
-    * Malformed headers
+- Created `requireAuth` middleware
+  - Extracts Bearer token from the `Authorization` header
+  - Verifies the token using the JWT secret
+  - Attaches the decoded user id to `req.user`
+  - Rejects:
+    - Missing tokens
+    - Invalid tokens
+    - Malformed headers
 
 Protected routes now include:
 
-* `POST /posts`
-* `PUT /posts/:id`
-* `DELETE /posts/:id`
-* `POST /posts/:postId/comments`
-* `PUT /comments/:id`
-* `DELETE /comments/:id`
+- `POST /posts`
+- `PUT /posts/:id`
+- `DELETE /posts/:id`
+- `POST /posts/:postId/comments`
+- `PUT /comments/:id`
+- `DELETE /comments/:id`
 
 ### Ownership Enforcement
 
@@ -290,45 +290,105 @@ Posts and comments now include:
 
 Ownership rules are enforced inside the repository layer:
 
-* If a resource does not exist → return `null`
-* If the resource exists but belongs to another user → return `'forbidden'`
-* If the requesting user is the owner → perform update/delete
+- If a resource does not exist → return `null`
+- If the resource exists but belongs to another user → return `'forbidden'`
+- If the requesting user is the owner → perform update/delete
 
 Controllers translate repository return values into HTTP responses:
 
-* `null` → `404 not_found`
-* `'forbidden'` → `403 forbidden`
-* success → `200` or `204`
+- `null` → `404 not_found`
+- `'forbidden'` → `403 forbidden`
+- success → `200` or `204`
 
 This preserves clear separation of concerns:
 
-* Authentication handled in middleware
-* Ownership enforced in the repository
-* HTTP responses shaped in the controller
+- Authentication handled in middleware
+- Ownership enforced in the repository
+- HTTP responses shaped in the controller
 
 ### Structural Updates
 
-* Added a `users` repository (in-memory)
-* Updated `createRepos()` to inject:
-  * `posts`
-  * `comments`
-  * `users`
-* Updated `createApp()` to accept injected configuration
-* Updated `server.js` to:
-  * Validate environment variables
-  * Inject `JWT_SECRET` into app config
+- Added a `users` repository (in-memory)
+- Updated `createRepos()` to inject:
+  - `posts`
+  - `comments`
+  - `users`
+- Updated `createApp()` to accept injected configuration
+- Updated `server.js` to:
+  - Validate environment variables
+  - Inject `JWT_SECRET` into app config
 
 This completes the dependency chain:
 
 Environment → App Config → Middleware → Controllers → Repositories
 
+### Repository Adjustments
+
+The comments repository was updated to include:
+`authorId`
+
+This aligns it with post ownership logic and allows update/delete operations to enforce ownership consistently across resources.
+
+Test files were updated to reflect this new repository contract.
+
+### Test Updates
+
+With authentication introduced, existing tests required updates to reflect the new protected route behavior.
+
+#### Authentication Test File
+
+* Added a dedicated `auth.test.js`
+* Verifies:
+  * A user can register successfully
+  * Passwords are hashed before storage
+  * A user can log in with valid credentials
+  * A JWT is returned on both register and login
+* Uses an injected test JWT secret to keep behavior predictable
+
+This confirms the authentication flow works end-to-end.
+
+#### Posts Test Updates
+
+Because `POST /posts` is now protected:
+
+* Updated tests to:
+  * Register a test user
+  * Retrieve a valid JWT
+  * Include `Authorization: Bearer <token>` header when creating posts
+* Verified:
+  * Public routes (`GET /posts`, `GET /posts/:id`) remain accessible
+  * Pagination behavior remains unchanged
+  * Protected routes correctly require authentication
+
+This ensures route protection was added without breaking existing behavior.
+
+#### Comments Test Updates
+
+Since nested comment creation is now protected:
+
+* Updated comment creation tests to:
+  * Register a user
+  * Send JWT in Authorization header
+* Verified:
+  * Comments can be created under an existing post
+  * Attempting to comment on a missing post still returns `404`
+  * Authentication middleware runs before route logic
+
+These updates confirm that nested resources correctly integrate with authentication and ownership enforcement.
+
 ### Notes / Takeaways
 
-* JWT authentication requires consistent secret handling across the application.
-* Middleware should handle authentication. Repositories should remain unaware of tokens.
-* Ownership enforcement belongs in the data layer, not in controllers.
-* Returning special values (`null`, `'forbidden'`) keeps repositories HTTP-agnostic.
-* Controllers are responsible for translating repo results into HTTP responses.
-* Introducing authentication changes method contracts and responsibilities.
-* Validating environment configuration at startup prevents subtle runtime failures.
+- JWT authentication requires consistent secret handling across the application.
+- Middleware should handle authentication. Repositories should remain unaware of tokens.
+- Ownership enforcement belongs in the data layer, not in controllers.
+- Returning special values (`null`, `'forbidden'`) keeps repositories HTTP-agnostic.
+- Controllers are responsible for translating repo results into HTTP responses.
+- Introducing authentication changes method contracts and responsibilities.
+- Validating environment configuration at startup prevents subtle runtime failures.
+- Formatting should be applied after major structural changes to reduce noise during debugging.
+- Authentication changes ripple through test files — protected routes require token setup.
+- Injecting configuration (`JWT_SECRET`) into test app instances keeps tests deterministic.
+- Separating formatting commits from logic commits makes history easier to follow.
+- Updating repositories requires updating test expectations to match new data contracts.
+- Middleware order continues to matter — authentication must run before controllers execute.
 

@@ -38,23 +38,23 @@ export function listPosts(req, res) {
    * Repo here means data repository (our in-memory data layer), not a GitHub repo.
    */
   const { posts } = res.locals.repos; //gets posts repo with this request.
-/**
- * Pulls pagination info from the query string (?limit=&page=).
- * parsePagination handles:
- * - converting strings to numbers
- * - applying default values
- * - clamping to safe ranges
- * - computing offset from page/limit
- */
+  /**
+   * Pulls pagination info from the query string (?limit=&page=).
+   * parsePagination handles:
+   * - converting strings to numbers
+   * - applying default values
+   * - clamping to safe ranges
+   * - computing offset from page/limit
+   */
 
   const { limit, page, offset } = parsePagination(req.query);
 
-/** This asks the posts repository for a specific "window" of data. The repository does NOT care about pages or query params.
-* It only cares about:
-* - how many items to return (limit)
-* - where to start in the list (offset)
-* This separation keeps pagination strategy out of the data layer.
-*/
+  /** This asks the posts repository for a specific "window" of data. The repository does NOT care about pages or query params.
+   * It only cares about:
+   * - how many items to return (limit)
+   * - where to start in the list (offset)
+   * This separation keeps pagination strategy out of the data layer.
+   */
   const result = posts.list({ limit, offset });
 
   return res.ok(result.items, {
@@ -77,10 +77,10 @@ User involvement:
   - If the post does NOT exist, the server returns a 404.
   */
 export function getPost(req, res) {
-  const { posts, comments } = res.locals.repos;//updated for day 2 homework for query param as the includeComments query param lets us optionally attach comments for this post.
+  const { posts, comments } = res.locals.repos; //updated for day 2 homework for query param as the includeComments query param lets us optionally attach comments for this post.
 
   const id = Number(req.params.id); // Grab the id from the URL (req.params) and convert it to a Number.
-  const includeComments = req.query.includeComments === 'true';//checks for the query param for the day 2 homework, i.e., /posts/123?includeComments=true
+  const includeComments = req.query.includeComments === 'true'; //checks for the query param for the day 2 homework, i.e., /posts/123?includeComments=true
 
   const post = posts.getById(id); // Ask the repository for the post with this id.
 
@@ -89,8 +89,9 @@ export function getPost(req, res) {
     throw notFound('Post not found');
   }
 
-  if (includeComments) { //includes comments in the return below , even if empty, that match the post id
-    const { items } =  comments.listForPost(id);
+  if (includeComments) {
+    //includes comments in the return below , even if empty, that match the post id
+    const { items } = comments.listForPost(id);
     return res.ok({ ...post, comments: items });
   }
 

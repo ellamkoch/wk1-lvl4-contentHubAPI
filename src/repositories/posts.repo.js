@@ -55,18 +55,19 @@ export function createPostsRepo() {
     },
 
     //This part creates a new post object with a title and body assigns it to the current unique id and adds it to the temp posts list and increases the id counter, so the next post gets a different id
-    create({ title, body, authorId }) {   // Builds a new post and attaches the authorId for ownership tracking
+    create({ title, body, authorId }) {
+      // Builds a new post and attaches the authorId for ownership tracking
       const post = { id: nextId++, title, body, authorId };
       posts.push(post);
       return post;
     },
 
     //updates a post by that author and id
-     update({ id, title, body, authorId }) {
+    update({ id, title, body, authorId }) {
       // Finds post to update by id
       const post = posts.find((p) => p.id === id) ?? null;
       if (!post) return null;
-      if (post.authorId !== authorId) return 'forbidden';   // Enforces ownership: only the author can update
+      if (post.authorId !== authorId) return 'forbidden'; // Enforces ownership: only the author can update
 
       post.title = title;
       post.body = body;

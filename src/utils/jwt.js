@@ -13,8 +13,9 @@ import jwt from 'jsonwebtoken';
  * sub = subject, a standard JWT claim
  */
 
-export function signToken({ userId, secret }) { //secret is injected from env
-    return jwt.sign({ sub: userId }, secret, { expiresIn: '2h' });
+export function signToken({ userId, secret }) {
+  //secret is injected from env
+  return jwt.sign({ sub: userId }, secret, { expiresIn: '2h' });
 }
 
 /**
@@ -23,9 +24,8 @@ export function signToken({ userId, secret }) { //secret is injected from env
  * Returns payload, which is the { sub: userId }
  * @param {{ token: string, secret: string }} params
  * @returns {{ sub: number }}
-*/
+ */
 
 export function verifyToken({ token, secret }) {
-    return jwt.verify(token,secret);
+  return jwt.verify(token, secret);
 }
-

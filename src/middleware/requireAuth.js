@@ -28,18 +28,18 @@ import { verifyToken } from '#utils/jwt';
  * Sets req.user = { id } on success.
  */
 export function requireAuth(req, _res, next) {
-  const header = req.headers.authorization ?? '';//reads the auth header safely so the missing header won't crash
+  const header = req.headers.authorization ?? ''; //reads the auth header safely so the missing header won't crash
   const [scheme, token] = header.split(' '); //splits scheme + token. expected format, i.e., Authorization: Bearer <token>
 
   //rejects if Bearer or missing token is not found or correct.
   if (scheme !== 'Bearer' || !token) {
-    return next(unauthorized('Missing Bearer token'));//next() passes control to the centralized error handler middleware and skips the remaining route logic, letting the error middleware format the response.
+    return next(unauthorized('Missing Bearer token')); //next() passes control to the centralized error handler middleware and skips the remaining route logic, letting the error middleware format the response.
   }
 
   try {
     //verifies token with injected JWT secret
     const secret = req.app.locals.config.JWT_SECRET; //Secret comes from env → app.locals.config
-    const payload = verifyToken({ token, secret });//Verifies signature + expiration using JWT_SECRET
+    const payload = verifyToken({ token, secret }); //Verifies signature + expiration using JWT_SECRET
 
     req.user = { id: Number(payload.sub) }; //Convert JWT "sub" (subject) to number for consistency with user IDs
     return next();
