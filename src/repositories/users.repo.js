@@ -1,45 +1,47 @@
-/** Day 3: in-memory users
- * This repo stores hashed passwords in order to protect the security of the app and the user's password.
- *  - hashing is handled before the data reaches the repo.
+/**
+ * users.repo.js
+ * -------------
+ * Day 4: SQLite-backed users repository.
+ *
+ * Stores hashed passwords (hashing happens before reaching the repo).
+ * This file is responsible only for database access.
+ *
  * @typedef {{ id: number, email: string, name: string, passwordHash: string }} User
  */
 
-export function createUsersRepo() {
-  /**@type {User[]}
-   */
-  const users = [];
-  let nextId = 1;
+export function createUsersRepo(db) {
+  // Prepared statement for inserting a new user
+  const stmtInsert = db.prepare(`
+    INSERT INTO users (email, name, password_hash)
+    VALUES (?, ?, ?)
+  `);
+  // Prepared statement for retrieving a user by email
+  const stmtByEmail = db.prepare(`
+    SELECT id, email, name, password_hash AS passwordHash
+    FROM users
+    WHERE email = ?
+    LIMIT 1
+  `);
 
   return {
     /**
+     * Inserts a new user into the database.
      * @param {{ email: string, name: string, passwordHash: string }} data
      * @returns {User}
      */
-    create(data) {
-      //we are creating user ids here. when a user id object is created with the email, name and the hashed password. When a new user id is made, it adds on to the last userid that was created to set the next userID automatically.
-      const user = { id: nextId++, ...data };
-      users.push(user);
-      return user;
-    },
-    /**
-     * This finds a user by email. Password comparison happens in the auth controller
-     * @param {string} email
-     * @returns {User|null}
-     */
-    findByEmail(email) {
-      return users.find((u) => u.email === email) ?? null;
+
+    create({ email, name, passwordHash }) {
+      const info = stmtInsert.run(email, name, passwordHash);
+      return { id: Number(info.lastInsertRowid), email, name, passwordHash };
     },
 
     /**
-     * This will be used by the auth middleware after verifying JWT
-     *  - token payload has sub (userId)
-     *  - middleware fetches the user
-     * - attaches user to req.user (or similar)
-     * @param {number} id
-     * @returns {User|null}
+     * Finds a user by email.
+     * @param {string} email
+     * @returns {User | null}
      */
-    findById(id) {
-      return users.find((u) => u.id === id) ?? null;
+    findByEmail(email) {
+      return stmtByEmail.get(email) ?? null;
     },
   };
 }

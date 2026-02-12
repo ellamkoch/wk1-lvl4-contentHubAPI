@@ -12,7 +12,8 @@
     "format:write": "prettier . --write",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "node -e \"import { openDatabase } from './src/db/database.js'; import { runMigrations } from './src/db/migrate.js'; const db = openDatabase(process.env.DB_PATH ?? './data/contenthub.sqlite'); runMigrations(db); console.log('Migrations applied');\""
   },
   "repository": {
     "type": "git",

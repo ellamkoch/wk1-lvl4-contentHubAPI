@@ -391,3 +391,156 @@ These updates confirm that nested resources correctly integrate with authenticat
 - Separating formatting commits from logic commits makes history easier to follow.
 - Updating repositories requires updating test expectations to match new data contracts.
 - Middleware order continues to matter — authentication must run before controllers execute.
+
+## Day 4
+
+Day 4 marks the transition from an in-memory API to a persistent, database-backed system. Up until now, all data lived in memory and reset on server restart. Today’s work replaced that temporary layer with a real SQLite database, while preserving the architecture and contracts built in previous days.
+
+The goal was not just to “add a database,” but to introduce persistence without breaking separation of concerns.
+
+### What I added
+
+#### SQLite Database Integration
+
+- Introduced a SQLite database using Node’s built-in `node:sqlite` driver.
+- Created a `db` folder to isolate database concerns from business logic.
+- Added:
+  - `database.js` — opens and configures the database connection.
+  - `migrate.js` — runs schema setup.
+  - `migrations/001_init.sql` — defines the initial schema.
+
+The database now persists:
+
+- `users`
+- `posts`
+- `comments`
+
+This replaces the in-memory arrays used in previous days.
+
+#### Schema Design (Relational Structure)
+
+The initial migration defines:
+
+- `users` table
+  - Unique email
+  - Hashed password storage
+  - `created_at` timestamp
+- `posts` table
+  - Linked to `users` via `author_id`
+  - `created_at` and `updated_at` timestamps
+  - `ON DELETE CASCADE` for user cleanup
+- `comments` table
+  - Linked to both `posts` and `users`
+  - `created_at` and `updated_at` timestamps
+  - Cascading deletes to maintain integrity
+
+Foreign key enforcement is enabled to ensure relational consistency.
+
+This shifts the API from simulated relationships to real database constraints.
+
+#### Repository Layer Migration
+
+All repositories were refactored from in-memory storage to SQLite-backed implementations:
+
+- `users.repo.js`
+- `posts.repo.js`
+- `comments.repo.js`
+
+Key changes:
+
+- Replaced arrays and manual id tracking with SQL queries.
+- Introduced prepared statements for:
+  - `SELECT`
+  - `INSERT`
+  - `UPDATE`
+  - `DELETE`
+  - `COUNT`
+
+- Pagination now uses `LIMIT` and `OFFSET` directly in SQL.
+- Ownership enforcement is handled inside SQL queries using:
+  `WHERE id = ? AND author_id = ?`
+  The repository contract remains the same:
+- `null` → resource not found
+- `'forbidden'` → wrong owner
+- success → updated entity or `true`
+
+Controllers were not rewritten. They continue to translate repository results into HTTP responses. This confirms that the abstraction layer held.
+
+#### Repository Factory Update
+
+`createRepos()` now accepts a database connection:
+`createRepos(db)`
+
+Repositories no longer create their own storage.
+
+This establishes a clear dependency chain:
+
+Database → Repositories → Controllers
+
+The app does not need to know how data is stored.
+
+#### Server Startup Changes
+
+`server.js` now:
+
+1. Validates environment variables.
+2. Opens the SQLite database.
+3. Runs migrations.
+4. Injects the database into repositories.
+5. Passes repositories into the app factory.
+
+Startup flow now looks like:
+
+Environment → Database → Migrations → Repositories → App
+
+The application now initializes its data layer on startup.
+
+#### Environment Configuration Updates
+
+`ensureEnv()` was extended to include:
+
+- `DB_PATH` validation
+- Continued validation of `JWT_SECRET`
+
+The server now depends on:
+
+- A valid JWT secret
+- A valid database file path
+
+Startup will fail fast if configuration is missing.
+
+#### Persistence Behavior Change
+
+Data is no longer cleared when the server restarts.
+
+The API now behaves like a real backend:
+
+- Posts and comments persist.
+- Relationships are enforced by the database.
+- Cascading deletes maintain integrity.
+
+### Structural Improvements
+
+- Clear separation between:
+  - Database setup
+  - Schema definition
+  - Repository logic
+  - Controllers
+- Repositories remain HTTP-agnostic.
+- Controllers remain unaware of database details.
+- Middleware order and response formatting remain unchanged.
+
+The transition from in-memory to SQLite required minimal changes to controllers, confirming that the abstraction was correctly designed in earlier days.
+
+### Notes / Takeaways
+
+- Moving from in-memory storage to SQLite validates the separation of concerns built earlier.
+- Prepared statements improve both safety and clarity.
+- Ownership enforcement can be expressed directly in SQL rather than manual array checks.
+- Pagination logic remains controller-driven, but slicing now happens at the database level.
+- Relational constraints shift integrity enforcement from application logic to the database.
+- Startup order matters: the database must exist before repositories are created.
+- Injecting dependencies (like `db`) makes architecture predictable and testable.
+- Refactoring storage should not require rewriting controllers if layers are properly separated.
+- Persistence changes how tests behave, since data no longer resets automatically.
+- Introducing a database transforms the API from a simulation into a real backend system.
