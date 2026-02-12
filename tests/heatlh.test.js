@@ -2,8 +2,9 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 
-import { createApp } from '../src/createApp';
-import { createRepos } from '../src/repositories/index';
+import { createApp } from '../src/createApp.js';
+import { createRepos } from '../src/repositories/index.js';
+// import { respond } from '../src/middleware/responds.js';
 
 describe('GET /health', () => {
   it('returns ok', async () => {

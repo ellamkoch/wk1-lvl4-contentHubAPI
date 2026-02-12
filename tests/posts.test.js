@@ -18,39 +18,44 @@
  *  - Use the GET method
  *  - choose the route
  *  - decide what the response should look like
+ * Day 2 - Updated test to include changes for pagination.
+ *
  */
 
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 
-import { createApp } from '../src/createApp';
-import { createRepos } from '../src/repositories/index';
+import { createApp } from '../src/createApp.js';
+import { createRepos } from '../src/repositories/index.js';
+// import { respond } from '../src/middleware/responds.js';
 
 describe('Posts', () => {
-  it('creates and lists posts', async () => {
+  it('creates and lists posts with pagination meta', async () => {
     const app = createApp({ repos: await createRepos() });
 
     await request(app).post('/posts').send({ title: 'A', body: '1' }).expect(201);
     await request(app).post('/posts').send({ title: 'B', body: '2' }).expect(201);
     await request(app).post('/posts').send({ title: 'C', body: '3' }).expect(201);
 
-    const res = await request(app).get('/posts').expect(200);
+    const res = await request(app).get('/posts?limit=2&page=1').expect(200);
 
-    expect(res.body.data);
+    expect(res.body.data).toHaveLength(2);
+    expect(res.body.meta.pagination.total).toBe(3);
+    expect(res.body.meta.pagination.limit).toBe(2);
+    expect(res.body.meta.pagination.page).toBe(1);
   });
 
   it('get a post by id, or return a Post not found message', async () => {
     const app = createApp({ repos: await createRepos() });
 
     const created = await request(app).post('/posts').send({ title: 'A', body: '1' }).expect(201);
-
     const id = created.body.data.id;
 
     const getRes = await request(app).get(`/posts/${id}`).expect(200);
     expect(getRes.body.data.id).toBe(id);
 
     const miss = await request(app).get('/posts/9999').expect(404);
-    expect(miss.body.error.message).toBe('Post not found');
+    expect(miss.body.error.code).toBe('not_found');
   });
 
   //if I was to split out the get post by id and a not found msg tests
@@ -72,7 +77,7 @@ describe('Posts', () => {
 
     // Act + Assert: request an id that doesn't exist
     const miss = await request(app).get('/posts/9999').expect(404);
-    expect(miss.body.error.message).toBe('Post not found');
+    expect(miss.body.error.code).toBe('not_found');
   });
 
   //delete post by id success
@@ -92,10 +97,9 @@ describe('Posts', () => {
   it('returns 404 when a post id that the user tries to delete is not found', async () => {
     const app = createApp({ repos: await createRepos() });
 
-
     // Act + Assert: try to delete an id that doesn't exist
     const delRes = await request(app).delete('/posts/9999').expect(404);
-    expect(delRes.body.error.message).toBe('Post not found');
+    expect(delRes.body.error.code).toBe('not_found');
   });
 
   it('returns 400 when a post id is invalid', async () => {
@@ -103,6 +107,6 @@ describe('Posts', () => {
 
     // Act + Assert: try to delete an id that is invalid
     const delRes = await request(app).delete('/posts/0').expect(400);
-    expect(delRes.body.error.message).toBe('Invalid post id');
+    expect(delRes.body.error.code).toBe('bad_request');
   });
 });
