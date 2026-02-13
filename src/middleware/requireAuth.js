@@ -41,7 +41,7 @@ export function requireAuth(req, _res, next) {
     const secret = req.app.locals.config.JWT_SECRET; //Secret comes from env → app.locals.config
     const payload = verifyToken({ token, secret }); //Verifies signature + expiration using JWT_SECRET
 
-    req.user = { id: Number(payload.sub) }; //Convert JWT "sub" (subject) to number for consistency with user IDs
+    req.user = { id: payload.sub }; //Convert JWT "sub" (subject) to number for consistency with user IDs
     return next();
   } catch {
     return next(unauthorized('Invalid token')); //this msg is vague again to help protect security of app/db

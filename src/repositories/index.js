@@ -1,31 +1,38 @@
 /**
- * repositories/index.js
- * ----------------------
- * Creates repository instances (data layer).
+ * Repository Factory (Prisma-backed)
  *
- * Day 1–3: In-memory repositories.
- * Day 4: Replaced with SQLite-backed repositories (db injected).
+ * This module centralizes creation of all data repositories.
+ * It injects the Prisma Client into each repository and returns
+ * a structured object used by the application layer.
  *
- * Why this structure matters:
- * - Separation of concerns (data access vs business logic)
- * - Abstraction (controllers don’t care how data is stored)
- * - Testability (repos can be mocked)
- * - Centralized data access logic
+ * Responsibilities:
+ * - Lazily import repository modules
+ * - Inject shared Prisma client
+ * - Preserve repository contracts
+ * - Keep controllers unaware of database implementation
  *
- * Day 4 change:
- * - Repositories no longer create their own data source.
- * - A database connection is injected for better control and flexibility.
+ * Architecture Notes:
+ * - Controllers depend on repository interfaces only
+ * - Repositories remain HTTP-agnostic
+ * - Ownership enforcement stays inside individual repos
+ * - This file enables swapping database engines without
+ *   modifying controllers or route logic
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * Engine:
+ * - Prisma Client (Supabase Postgres)
+ * - Replaces previous SQLite injection
+ *
+ * @param {import('../../generated/prisma/client.js').PrismaClient} prisma
  * @returns {{
  *   posts: import('./posts.repo.js').PostsRepo,
  *   comments: import('./comments.repo.js').CommentsRepo,
  *   users: import('./users.repo.js').UsersRepo
  * }}
  */
-// This function is a central factory that initializes and exposes all repositories.
 
-export async function createRepos(db) {
+// This function is a central factory that lazily initializes and exposes all repositories.
+
+export async function createRepos(prisma) {
   // Lazy import keeps this minimal for Day 1
   // (you can also use a direct import if you prefer).
   const { createPostsRepo } = await import('./posts.repo.js');
@@ -33,8 +40,8 @@ export async function createRepos(db) {
   const { createUsersRepo } = await import('./users.repo.js');
 
   return {
-    posts: createPostsRepo(db),
-    comments: createCommentsRepo(db),
-    users: createUsersRepo(db),
+    posts: createPostsRepo(prisma),
+    comments: createCommentsRepo(prisma),
+    users: createUsersRepo(prisma),
   };
 }

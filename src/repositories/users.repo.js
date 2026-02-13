@@ -1,47 +1,65 @@
 /**
- * users.repo.js
- * -------------
- * Day 4: SQLite-backed users repository.
+ * Users Repository (Prisma-backed)
  *
- * Stores hashed passwords (hashing happens before reaching the repo).
- * This file is responsible only for database access.
+ * Provides minimal data access methods for User entities.
  *
- * @typedef {{ id: number, email: string, name: string, passwordHash: string }} User
+ * Responsibilities:
+ * - Create new users (during registration)
+ * - Find user by email (for login)
+ * - Find user by ID (for auth/ownership checks)
+ *
+ * Architecture Notes:
+ * - Backed by Prisma Client (Supabase Postgres)
+ * - Replaces previous SQLite / in-memory implementation
+ * - Repository remains HTTP-agnostic (no status codes here)
+ * - Controllers handle validation, hashing, and response shaping
+ *
+ * Security Model:
+ * - Password hashing is handled before reaching this layer
+ * - Repository stores passwordHash but does not compare passwords
+ * - Unique email constraint enforced at the database level
+ *
+ * Return Contracts:
+ * - Returns user object on success
+ * - Returns null if user not found
+ * - Throws Prisma errors for unique constraint violations
+ *
+ * Engine Swap Guarantee:
+ * - Controller behavior unchanged
+ * - Auth middleware unchanged
+ * - Only persistence layer updated
+ *
+ * @param {import('../../generated/prisma/client.js').PrismaClient} prisma
  */
 
-export function createUsersRepo(db) {
-  // Prepared statement for inserting a new user
-  const stmtInsert = db.prepare(`
-    INSERT INTO users (email, name, password_hash)
-    VALUES (?, ?, ?)
-  `);
-  // Prepared statement for retrieving a user by email
-  const stmtByEmail = db.prepare(`
-    SELECT id, email, name, password_hash AS passwordHash
-    FROM users
-    WHERE email = ?
-    LIMIT 1
-  `);
+export function createUsersRepo(prisma) {
 
   return {
     /**
-     * Inserts a new user into the database.
+     * Create a user.
+     *
      * @param {{ email: string, name: string, passwordHash: string }} data
-     * @returns {User}
      */
-
-    create({ email, name, passwordHash }) {
-      const info = stmtInsert.run(email, name, passwordHash);
-      return { id: Number(info.lastInsertRowid), email, name, passwordHash };
+    async create(data) {
+      return prisma.user.create({ data });
     },
 
     /**
-     * Finds a user by email.
+     * Find a user by email.
+     *
      * @param {string} email
-     * @returns {User | null}
      */
-    findByEmail(email) {
-      return stmtByEmail.get(email) ?? null;
+    async findByEmail(email) {
+      return prisma.user.findUnique({ where: { email } });
+    },
+
+  /**
+     * Find a user by id.
+     *
+     * @param {string} id
+     */
+    async findById(id) {
+      return prisma.user.findUnique({ where: { id } });
     },
   };
 }

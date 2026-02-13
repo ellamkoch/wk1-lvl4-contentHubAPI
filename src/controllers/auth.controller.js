@@ -7,7 +7,7 @@ import { signToken } from '#utils/jwt';
  * POST /auth/register
  */
 
-export function registerUser(req, res) {
+export async function registerUser(req, res) {
   const { users } = res.locals.repos;
 
   ensureBodyFields(req.body, ['email', 'name', 'password']); //controller validates the presence of required fields
@@ -18,11 +18,13 @@ export function registerUser(req, res) {
   const password = String(req.body.password);
 
   //Controller checks for duplicate email; throws conflict if found
-  if (users.findByEmail(email)) {
+  const userExists = await users.findByEmail(email);
+
+  if (userExists) {
     throw conflict('Email already registered');
   }
 
-  const user = users.create({
+  const user = await users.create({
     email,
     name,
     passwordHash: hashPassword(password), // password hashing happens before the repo. no plaintext is ever stored. repo only stores the hashed pw
@@ -41,7 +43,7 @@ export function registerUser(req, res) {
  * POST /auth/login
  */
 
-export function loginUser(req, res) {
+export async function loginUser(req, res) {
   const { users } = res.locals.repos;
 
   ensureBodyFields(req.body, ['email', 'password']); //controller validates the presence of required fields
@@ -49,7 +51,7 @@ export function loginUser(req, res) {
   const email = String(req.body.email).toLowerCase().trim();
   const password = String(req.body.password);
 
-  const user = users.findByEmail(email);
+  const user = await users.findByEmail(email);
 
   if (!user) {
     throw unauthorized('Invalid credentials'); //better to say invalid credentials instead of invalid pw or email. helps protect security of app/db.

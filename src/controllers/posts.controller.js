@@ -31,7 +31,7 @@ import { notFound, forbidden } from '#utils/httpErrors'; // helpers that creates
 import { ensureBodyFields } from '#utils/guard'; //guard that enforces required fields in req.body so we don't have to rewrite (!title || !body) logic every time its needed.
 import { parsePagination } from '#utils/pagination'; //controllers shouldn't manually parse/validate query params. this is to help normalize them into safe integers.
 
-export function listPosts(req, res) {
+export async function listPosts(req, res) {
   //with pagination we need req to be read for limits/pages in posts that are listed.
   /** res.locals is an Express-provided object that can store data for the lifetime of THIS request.
    * In our app the repos are stored on res.locals.repos.
@@ -55,7 +55,7 @@ export function listPosts(req, res) {
    * - where to start in the list (offset)
    * This separation keeps pagination strategy out of the data layer.
    */
-  const result = posts.list({ limit, offset });
+  const result = await posts.list({ limit, offset });
 
   return res.ok(result.items, {
     pagination: { limit, page, total: result.total },
@@ -76,13 +76,13 @@ User involvement:
   - If the post exists, the server returns it.
   - If the post does NOT exist, the server returns a 404.
   */
-export function getPost(req, res) {
+export async function getPost(req, res) {
   const { posts, comments } = res.locals.repos; //updated for day 2 homework for query param as the includeComments query param lets us optionally attach comments for this post.
 
-  const id = Number(req.params.id); // Grab the id from the URL (req.params) and convert it to a Number.
+  const id = req.params.id; // Grab the id from the URL (req.params) and convert it to a Number.
   const includeComments = req.query.includeComments === 'true'; //checks for the query param for the day 2 homework, i.e., /posts/123?includeComments=true
 
-  const post = posts.getById(id); // Ask the repository for the post with this id.
+  const post = await posts.getById(id); // Ask the repository for the post with this id.
 
   if (!post) {
     //if a post isn't found, it throws an error
@@ -115,14 +115,14 @@ export function getPost(req, res) {
   - If the request is missing data, the server returns a 400 (Bad Request).
   - If the data is valid, the server creates the post and returns a 201 (Created).
     */
-export function createPost(req, res) {
+export async function createPost(req, res) {
   // Pull title and body from the incoming request body.
   const { posts } = res.locals.repos;
   ensureBodyFields(req.body, ['title', 'body']); //reinforces required fields in a simple reusable way.
 
   const { title, body } = req.body ?? {};
 
-  const created = posts.create({ title, body, authorId: req.user.id }); // Creates the new post using our repository, tagging it with the authorId of the user that created it.
+  const created = await posts.create({ title, body, authorId: req.user.id }); // Creates the new post using our repository, tagging it with the authorId of the user that created it.
   return res.created(created); // Returns the created post so the client can see the new id and data.
 }
 
@@ -130,13 +130,13 @@ export function createPost(req, res) {
  * PUT /posts/:id (AUTH + OWNER)
  * Repo returns: updated post | null (not found) | 'forbidden' (wrong owner)
  */
-export function updatePost(req, res) {
+export async function updatePost(req, res) {
   const { posts } = res.locals.repos;
-  const id = Number(req.params.id);
+  const id = req.params.id;
 
   ensureBodyFields(req.body, ['title', 'body']);
 
-  const updated = posts.update({
+  const updated = await posts.update({
     id,
     title: req.body.title,
     body: req.body.body,
@@ -149,13 +149,13 @@ export function updatePost(req, res) {
   return res.ok(updated);
 }
 
-export function deletePost(req, res) {
+export async function deletePost(req, res) {
   const { posts } = res.locals.repos;
 
-  const id = Number(req.params.id); // Grab the id from the URL (req.params) and convert it to a Number.
+  const id = req.params.id; // Grab the id from the URL (req.params) and convert it to a Number.
 
   // ask the repo to delete the post by a particular id
-  const result = posts.delete({ id, authorId: req.user.id }); // Ask repo to delete this post if the current user owns it
+  const result = await posts.delete({ id, authorId: req.user.id }); // Ask repo to delete this post if the current user owns it
 
   //guards to return an error if nothing was deleted and treat it like a not found error or a forbidden error
   if (result === null) throw notFound('Post not found');
