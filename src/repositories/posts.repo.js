@@ -1,106 +1,120 @@
 /**
- * SQLite-backed repository for blog posts.
+ * Posts Repository (Prisma-backed)
  *
- * Day 2:
- * - Added getById and pagination support.
+ * Provides data access methods for Post entities.
  *
- * Day 3:
- * - Added authorId to posts.
- * - Enforced ownership rules for update/delete.
+ * Responsibilities:
+ * - List posts with pagination
+ * - Count total posts
+ * - Fetch a single post by ID
+ * - Create new posts
+ * - Update posts (with ownership enforcement)
+ * - Delete posts (with ownership enforcement)
  *
- * Repo responsibilities:
- * - Store and retrieve post data.
- * - Enforce ownership by returning:
- *    - null (post not found)
- *    - 'forbidden' (post exists but wrong owner)
- *    - success value (updated post or true)
+ * Architecture Notes:
+ * - Backed by Prisma Client (Supabase Postgres)
+ * - Replaces previous SQLite implementation
+ * - Controllers remain unchanged
+ * - Repository remains HTTP-agnostic
+ * - Ownership enforcement stays inside this layer
  *
- * Repo does NOT:
- * - Validate request input
- * - Check authentication
- * - Throw HTTP errors
+ * Return Contracts:
+ * - Success → returns entity object (or true for delete)
+ * - Not found → returns null
+ * - Not owner → returns 'forbidden'
  *
- * Controllers translate repo results into HTTP responses.
+ * Pagination:
+ * - Uses skip/take for offset pagination
+ * - Ordered by createdAt DESC (newest first)
+ * - Returns { items, total }
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * Engine Swap Guarantee:
+ * - No changes to response envelopes
+ * - No changes to controller behavior
+ * - Only the persistence layer has changed
+ *
+ * @param {import('../../generated/prisma/client.js').PrismaClient} prisma
  */
 
+
 //This function  creates the actual "manager" function that other parts of your API project will call when they need to deal with posts.
-export function createPostsRepo(db) {
-  // Prepared statements (compiled SQL we reuse)
-  const stmtList = db.prepare(`
-    SELECT id, title, body, author_id AS authorId, created_at AS createdAt, updated_at AS updatedAt
-    FROM posts
-    ORDER BY id DESC
-    LIMIT ? OFFSET ?
-  `);
-  const stmtCount = db.prepare(`SELECT COUNT(*) AS total FROM posts`);
-
-  const stmtGetById = db.prepare(`
-    SELECT id, title, body, author_id AS authorId, created_at AS createdAt, updated_at AS updatedAt
-    FROM posts
-    WHERE id = ?
-    LIMIT 1
-  `);
-
-  const stmtInsert = db.prepare(`
-    INSERT INTO posts (title, body, author_id)
-    VALUES (?, ?, ?)
-  `);
-
-  const stmtUpdate = db.prepare(`
-    UPDATE posts
-    SET title = ?, body = ?, updated_at = datetime('now')
-    WHERE id = ? AND author_id = ?
-  `);
-
-  const stmtDelete = db.prepare(`
-    DELETE FROM posts
-    WHERE id = ? AND author_id = ?
-  `);
+export function createPostsRepo(prisma) {
 
   return {
-    list({ limit = 20, offset = 0 } = {}) {
-      const total = Number(stmtCount.get().total);
-      const items = stmtList.all(limit, offset);
+   /**
+     * List posts with pagination.
+     *
+     * @param {{ limit?: number, offset?: number }} params
+     */
+    async list({ limit = 20, offset = 0 } = {}) {
+      const [items, total] = await Promise.all([
+        prisma.post.findMany({
+          skip: offset,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.post.count(),
+      ]);
       return { items, total };
     },
 
-    //get a post by id
-    getById(id) {
-      return stmtGetById.get(id) ?? null; //finds the post id that matches the id we are requesting
+    /**
+     * Get a post by id.
+     *
+     * @param {string} id
+     */
+    async getById(id) {
+      return prisma.post.findUnique({ where: { id } });
     },
 
-    //This part creates a new post object with a title and body assigns it to the current unique id and adds it to the temp posts list and increases the id counter, so the next post gets a different id
-    create({ title, body, authorId }) {
-      // Builds a new post and attaches the authorId for ownership tracking
-      const info = stmtInsert.run(title, body, authorId);
-      return this.getById(Number(info.lastInsertRowid));
+  /**
+     * Create a post.
+     *
+     * @param {{ title: string, body: string, authorId: string }} data
+     */
+    async create({ title, body, authorId }) {
+      return prisma.post.create({
+        data: { title, body, authorId },
+      });
     },
 
-    //updates a post by that author and id
-    update({ id, title, body, authorId }) {
-      // Finds post to update by id
-      const info = stmtUpdate.run(title, body, id, authorId);
-      if (info.changes === 0) {
-        const exists = this.getById(id);
-        if (!exists) return null;
-        return 'forbidden';
-      }
-      return this.getById(id);
+     /**
+     * Update a post if exists and user owns it.
+     *
+     * Returns:
+     * - updated post object
+     * - null (not found)
+     * - 'forbidden' (not owner)
+     *
+     * @param {{ id: string, title: string, body: string, authorId: string }} data
+     */
+    async update({ id, title, body, authorId }) {
+      const existing = await prisma.post.findUnique({ where: { id } });
+      if (!existing) return null;
+      if (existing.authorId !== authorId) return 'forbidden';
+
+      return prisma.post.update({
+        where: { id },
+        data: { title, body },
+      });
     },
 
-    // delete a post by id + author (ownership enforced)
-    delete({ id, authorId }) {
-      const info = stmtDelete.run(id, authorId);
+   /**
+     * Delete a post if exists and user owns it.
+     *
+     * Returns:
+     * - true (deleted)
+     * - null (not found)
+     * - 'forbidden' (not owner)
+     *
+     * @param {{ id: string, authorId: string }} data
+     */
+    async delete({ id, authorId }) {
+      const existing = await prisma.post.findUnique({ where: { id } });
+      if (!existing) return null;
+      if (existing.authorId !== authorId) return 'forbidden';
 
-      // If nothing deleted, either it doesn't exist or wrong owner
-      if (info.changes === 0) {
-        const exists = this.getById(id);
-        if (!exists) return null;
-        return 'forbidden';
-      }
-
+      await prisma.post.delete({ where: { id } });
       return true;
     },
   };
