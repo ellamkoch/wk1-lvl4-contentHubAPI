@@ -5,7 +5,7 @@
 coverage/
 
 # Temporary files
-.data/**
+.data/
 
 # Logs
 logs

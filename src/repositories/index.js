@@ -1,19 +1,31 @@
 /**
- * Creates repositories (data layer).
- * Day 1: in-memory only. Day 4: replaced with SQLite-backed repositories.
- * //This structure is important because of:
- *  * Separation of concerns as it divides code responsibility for accessing data from business logic
- *  * Abstraction/Flexibility as the app doesn't need to know the details of how its stored. It just calls methods on the posts repo and gets the data needed. Can easily change the underlying db tech w/o affecting the rest of the code if you do this.
- *  * Testability is easier because data access is abstract, so its easier to write automated tests and mock the repo to ensure logic works correctly.
- *  * Centralized data logic helps to make code easier to manage, maintain and scale as it grow.
+ * repositories/index.js
+ * ----------------------
+ * Creates repository instances (data layer).
  *
+ * Day 1–3: In-memory repositories.
+ * Day 4: Replaced with SQLite-backed repositories (db injected).
+ *
+ * Why this structure matters:
+ * - Separation of concerns (data access vs business logic)
+ * - Abstraction (controllers don’t care how data is stored)
+ * - Testability (repos can be mocked)
+ * - Centralized data access logic
+ *
+ * Day 4 change:
+ * - Repositories no longer create their own data source.
+ * - A database connection is injected for better control and flexibility.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
  * @returns {{
  *   posts: import('./posts.repo.js').PostsRepo,
- *   comments: import('./comments.repo.js').CommentsRepo
+ *   comments: import('./comments.repo.js').CommentsRepo,
+ *   users: import('./users.repo.js').UsersRepo
  * }}
  */
-//This function acts like a central point to initialize and expose all different repos (data sources) in one place, making them easily accessible throughout the entire app w/ cleaner import statements.
-export async function createRepos() {
+// This function is a central factory that initializes and exposes all repositories.
+
+export async function createRepos(db) {
   // Lazy import keeps this minimal for Day 1
   // (you can also use a direct import if you prefer).
   const { createPostsRepo } = await import('./posts.repo.js');
@@ -21,8 +33,8 @@ export async function createRepos() {
   const { createUsersRepo } = await import('./users.repo.js');
 
   return {
-    posts: createPostsRepo(),
-    comments: createCommentsRepo(),
-    users: createUsersRepo(),
+    posts: createPostsRepo(db),
+    comments: createCommentsRepo(db),
+    users: createUsersRepo(db),
   };
 }
