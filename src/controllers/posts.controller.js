@@ -1,43 +1,56 @@
 /**
-This file contains the server-side logic for handling incoming HTTP Post/get/delete requests within a backend API. It defines specific API endpoints for managing post resources to either read existing posts or add new ones.
+ * Posts Controller
+ *
+ * This file contains HTTP-focused handler functions for the /posts routes.
+ * Controllers:
+ *  - read input from the request (params, query, body)
+ *  - call the repository to do the actual data work
+ *  - send the final HTTP response (status + JSON)
+ *
+ * Controllers do NOT:
+ *  - talk to Prisma directly
+ *  - decide database rules/ownership checks (repo does that)
+ *  - decide how data is stored long-term
+ *
+ * Auth note:
+ *  - Some routes are protected by requireAuth middleware.
+ *  - On protected routes, req.user is available (decoded from JWT) and is used for ownership.
+ *
+ * Query parsing note:
+ *  - Query params arrive as strings (or undefined).
+ *  - We use helpers like parsePagination, parseBoolean, and parseCsvSet to keep controllers consistent.
+ */
 
-IMPORTANT CONTEXT (Express / HTTP):
-- req (request) is provided by Express and represents the incoming HTTP request.
-  It contains things like URL params, query params, and request body data.
-- res (response) is also provided by Express and is used to send a reply back
-  to the client, including status codes and JSON data.
+/**
+ * GET /posts
+ *
+ * Returns a paginated list of posts.
+ *
+ * Query params (optional):
+ *  - limit, page (handled by parsePagination)
+ *  - includeCounts=true/false/1/0
+ *      When true, the repo includes Prisma _count data (ex: comment counts per post).
+ *
+ * Controller responsibility:
+ *  - parse/normalize query params
+ *  - pass limit/offset + options into the repo
+ *  - return { data, meta } via res.ok(...)
+ */
 
-  A controller’s job is to:
-    - read data from the request (req)
-    - decide what should happen
-    - send a response back to the client (res)
-
-  It should NOT worry about where data is stored long-term. That’s the repository’s job.
-
- Day 3 note:
-  - Some routes are protected by requireAuth middleware.
-  - For protected routes, req.user is available (set from the JWT) and is used for ownership (authorId).
-
-______________________________________________________________________________________________________________________
- * GET /posts - This function handles a GET request to the /posts route. A GET request is used to retrieve data.
-  User Involvement:
-    - The user's app asks the server for posts with pagination limitations set by the params.
-    - The server fetches the posts from the repository.
-    - The client can request a subset of posts using limit and page query params.
-    - User can request a page of posts using limit + page, while offset is computed internally
-*/
-
-import { notFound, forbidden } from '#utils/httpErrors'; // helpers that creates a standard 404 error object to throw
-import { ensureBodyFields } from '#utils/guard'; //guard that enforces required fields in req.body so we don't have to rewrite (!title || !body) logic every time its needed.
-import { parsePagination } from '#utils/pagination'; //controllers shouldn't manually parse/validate query params. this is to help normalize them into safe integers.
+import { notFound, forbidden } from '#utils/httpErrors';
+import { ensureBodyFields } from '#utils/guard';
+import { parsePagination } from '#utils/pagination';
+import { parseBoolean, parseCsvSet } from '#utils/queryParams';
 
 export async function listPosts(req, res) {
   //with pagination we need req to be read for limits/pages in posts that are listed.
   /** res.locals is an Express-provided object that can store data for the lifetime of THIS request.
    * In our app the repos are stored on res.locals.repos.
-   * Repo here means data repository (our in-memory data layer), not a GitHub repo.
+    * Repo here means "repository object" (data access layer), not a GitHub repo.
    */
   const { posts } = res.locals.repos; //gets posts repo with this request.
+
+  const includeCounts = parseBoolean(req.query.includeCounts);
   /**
    * Pulls pagination info from the query string (?limit=&page=).
    * parsePagination handles:
@@ -55,66 +68,62 @@ export async function listPosts(req, res) {
    * - where to start in the list (offset)
    * This separation keeps pagination strategy out of the data layer.
    */
-  const result = await posts.list({ limit, offset });
+  const result = await posts.list({ limit, offset, includeCounts });
 
   return res.ok(result.items, {
     pagination: { limit, page, total: result.total },
   });
 }
 
-/**  Get /posts/:id
-  This function handles a GET request to /posts/:id (a single post by id). I.e.,  GET /posts/3
-  includeComments is optional: GET /posts/:id?includeComments=true
+/**
+ * GET /posts/:id
+ *
+ * Returns a single post by id.
+ * IDs are strings (UUIDs) in Postgres/Prisma, so we do NOT Number() them.
+ *
+ * Optional includes (via query param):
+ *  - ?include=author,comments
+ *
+ * How includes work:
+ *  - We parse include into a Set for clean "has()" checks.
+ *  - We then call posts.getByIdWithIncludes(...) which can attach:
+ *      - author (selected fields only)
+ *      - comments (ordered oldest → newest), with each comment's author
+ *
+ * If no post exists for that id, we throw a 404.
+ */
 
-IMPORTANT CONTEXT (Route Params):
-- ":id" is a route parameter. Express parses it from the URL and stores it on "req.params.id"
-- "req.params""" values are always strings, so we convert the id to a Number to match how our repository stores ids.
-
-User involvement:
-  - The user's app requests one specific post by id.
-  - The server looks up that post in the repository.
-  - If the post exists, the server returns it.
-  - If the post does NOT exist, the server returns a 404.
-  */
 export async function getPost(req, res) {
-  const { posts, comments } = res.locals.repos; //updated for day 2 homework for query param as the includeComments query param lets us optionally attach comments for this post.
+  const { posts } = res.locals.repos; //updated for day 2 homework for query param as the includeComments query param lets us optionally attach comments for this post.
 
   const id = req.params.id; // Grab the id from the URL (req.params) and convert it to a Number.
-  const includeComments = req.query.includeComments === 'true'; //checks for the query param for the day 2 homework, i.e., /posts/123?includeComments=true
 
-  const post = await posts.getById(id); // Ask the repository for the post with this id.
+ const include = parseCsvSet(req.query.include); // "include" is a CSV string like "comments,author" → parseCsvSet gives us a Set we can check with include.has(...)
+
+  const includeAuthor = include.has('author');
+  const includeComments = include.has('comments');
+
+  const post = await posts.getByIdWithIncludes(id, {
+    includeAuthor,
+    includeComments,
+  });
 
   if (!post) {
     //if a post isn't found, it throws an error
     throw notFound('Post not found');
   }
 
-  if (includeComments) {
-    //includes comments in the return below , even if empty, that match the post id
-    const { items } = comments.listForPost(id);
-    return res.ok({ ...post, comments: items });
-  }
-
-  return res.ok(post); //otherwise returns the successfully found post, now with comments it may have attached to it..
+   return res.ok(post); //otherwise returns the successfully found post, now with comments it may have attached to it..
 }
 /**
- * POST /posts - requires auth now
- * This function handles a POST request to the /posts route.
- * A POST request is used to create new data.
- * Posts now track ownership thanks to authorId.
+ * POST /posts (AUTH REQUIRED)
  *
- * IMPORTANT CONTEXT (Request Body):
-  - The client sends data in the request body (req.body).
-  - req.body is only available if we have JSON middleware enabled (express.json()).
-  - req.user is set by requireAuth middleware (decoded from JWT)
+ * Creates a new post owned by the authenticated user.
+ * - Validates required fields (title, body)
+ * - Uses req.user.id as authorId
+ * - Returns 201 Created with the new post
+ */
 
- *
- User involvement:
-  - The user submits a new post (title + body) from their app.
-  - The server validates that required fields exist.
-  - If the request is missing data, the server returns a 400 (Bad Request).
-  - If the data is valid, the server creates the post and returns a 201 (Created).
-    */
 export async function createPost(req, res) {
   // Pull title and body from the incoming request body.
   const { posts } = res.locals.repos;
@@ -128,8 +137,12 @@ export async function createPost(req, res) {
 
 /**
  * PUT /posts/:id (AUTH + OWNER)
- * Repo returns: updated post | null (not found) | 'forbidden' (wrong owner)
+ * Repo returns:
+ * - updated post object (success)
+ * - null (not found)
+ * - 'forbidden' (wrong owner)
  */
+
 export async function updatePost(req, res) {
   const { posts } = res.locals.repos;
   const id = req.params.id;
@@ -149,10 +162,20 @@ export async function updatePost(req, res) {
   return res.ok(updated);
 }
 
+/**
+ * DELETE /posts/:id (AUTH + OWNER)
+ * Repo returns:
+ * - true (deleted)
+ * - null (not found)
+ * - 'forbidden' (wrong owner)
+ *
+ * Controller returns 204 No Content on success.
+ */
+
 export async function deletePost(req, res) {
   const { posts } = res.locals.repos;
 
-  const id = req.params.id; // Grab the id from the URL (req.params) and convert it to a Number.
+  const id = req.params.id; // Grab the id from the URL params (UUID string)
 
   // ask the repo to delete the post by a particular id
   const result = await posts.delete({ id, authorId: req.user.id }); // Ask repo to delete this post if the current user owns it

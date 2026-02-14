@@ -1,9 +1,10 @@
-// This file is the central control for the app. Its where the different components of the app are brought together, configured, and assembled into a working solution.
+// This file is the central assembly point for the app.
+// It’s where middleware, routes, and global handlers are configured and wired together.
 import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 
-import { errorHandler } from '#middleware/errorHandler';
+import { createErrorHandler } from '#middleware/errorHandler';
 import { notFoundHandler } from '#middleware/notFoundHandler';
 import { respond } from '#middleware/responds';
 
@@ -12,53 +13,51 @@ import { authRouter } from '#routes/auth.routes';
 import { commentsRouter } from '#routes/comments.routes';
 
 /**
- * This is a Factory pattern that creates the Express app with injected dependencies.
- * This is the pattern that makes testing easy with Supertest.
+ * Factory function that creates and returns an Express app with injected dependencies.
+ * This pattern makes testing easier with Supertest because we can pass in test repos/config.
  *
  * @param {{ repos: any, config?: object }} deps
  * @returns {import('express').Express}
  */
+
 export function createApp({ repos, config = {} }) {
-  // Express functions always return objects that have functionality built in
-  // Initialize the app object that's returned from the Express function
+  // Create the Express app instance
   const app = express();
 
-  app.locals.config = config;
+  app.locals.config = config; // Store config so it’s accessible app-wide (app.locals is available in middleware/routes)
 
-  // This is a built in feature that lets the app understand and parse JSON request bodies
-  app.use(express.json());
+  app.use(express.json());// Built-in middleware that parses JSON request bodies into req.body
 
-  // This is a crucial Security too that sets special HTTP headers to protect the app from common online attacks
-  app.use(helmet());
+  app.use(helmet()); // Security middleware that sets HTTP headers to protect against common attacks
 
-  // This is a logging tool that acts like a surveillance camera, logging requests the API gets and printing helpful info into the console.  (dev-friendly)
-  app.use(morgan('dev'));
+  app.use(morgan('dev'));// Logging middleware that prints request details to the console (dev-friendly)
 
-  //Middleware response helpers (res.ok/res.created, etc.) Must go before routes to prep the response before anyone uses it.
-  app.use(respond);
+    // Middleware Response helpers (res.ok/res.created, etc.)
+  app.use(respond); // Must run before routes so controllers can use these helpers.
 
-  // Health check endpoint - This creates a simple message to see if the app is alive and running correctly.
+// Health check endpoint - confirms the API is up
   app.get('/health', (_req, res) => {
     //the _ before req means that this can be ignored.
     res.json({ status: 'ok', message: 'App is running correctly' });
   });
 
-  // Ths is where the repos are attached to to res.locals, which is a temp space, so controllers can access them easily
-  app.use((_req, res, next) => {
+   app.use((_req, res, next) => {  // Attach repositories to res.locals so controllers can access them during the request
     res.locals.repos = repos;
     next();
   });
 
-  // Routes - this connects the postRouter to the main app
+  // Routes - this connects the Routers to the main app
   app.use('/posts', postsRouter);
   app.use('/auth', authRouter);
   app.use('/comments', commentsRouter);
 
-  //This catches not defined routes with a specific message. This must be listed after routes so it only runs when no route matches (i.e., catch all for 404s). Otherwise every request would be a 404 immediately.
+ // Catch-all 404 handler (must be after routes so it only runs when no route matches)
   app.use(notFoundHandler);
 
-  // This installs the Error handling software. This middleware must be last (4 args signature) as it acts as a final safety net as if any problem that falls through all others will then be handled by the middleware, and prevent the app from crashing. Only runs if something is thrown or a next(err) is called.
-  app.use(errorHandler);
+  // Global error handler (must be last).
+  // createErrorHandler() returns the actual 4-argument Express error middleware.
+  // Only runs when an error is thrown or next(err) is called.
+  app.use(createErrorHandler);
 
   return app;
 }
