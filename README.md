@@ -557,12 +557,125 @@ Week 2 begins the transition from SQLite to a Postgres-based system using Prisma
   * Controllers remain storage-agnostic
   * Repositories remain HTTP-agnostic
   * No endpoint behavior or contracts were changed
+* **Installed and configured Prisma**
+  * Added `@prisma/client`, `@prisma/adapter-pg`, `pg`, and `dotenv`
+  * Aligned all Prisma packages to the same version (`7.4.x`)
+  * Added `"postinstall": "npx prisma generate"` to ensure the client generates automatically
+  * Added `/generated/prisma` to `.gitignore`
+* **Created Prisma schema and configuration**
+  * Defined `User`, `Post`, and `Comment` models in `schema.prisma`
+  * Configured `DATABASE_URL` (runtime) and `DIRECT_URL` (migrations)
+  * Successfully ran:
+    * `npx prisma migrate dev`
+    * `npx prisma generate`
+* **Refactored repositories to use Prisma**
+  * Replaced SQLite queries and prepared statements with Prisma methods
+  * Preserved repository return contracts:
+    * `null` → not found
+    * `'forbidden'` → ownership violation
+    * success → entity or boolean
+  * Controllers and response envelopes remain unchanged
+* **Updated server wiring**
+  * Removed SQLite initialization and migration runner
+  * Injected Prisma client into `createRepos`
+  * Added graceful shutdown handling with `prisma.$disconnect()`
 
+### Notes / bumps along the way
 
+* Prisma setup was more involved than expected — version alignment and configuration details required careful troubleshooting.
+* Runtime and migration database URLs must be configured separately.
+* A small configuration typo (`JWT_Secret` vs `JWT_SECRET`) temporarily broke authentication.
+* Once properly wired, the engine swap did not require rewriting controllers — the architecture held.
 
-### Notes / takeaways
+### Takeaways
 
-* SQLite was synchronous. Prisma will be asynchronous. The surface layer must respect that shift.
-* Preparing controllers first prevents larger refactors later.
-* Small structural adjustments now protect the architecture during database migration.
+* Preparing controllers for async behavior before swapping databases prevents cascading refactors.
+* Engine swaps are easier when contracts are already stable.
+* Environment configuration bugs can be just as disruptive as database bugs.
+* Strict version alignment matters when working with ORM tooling.
+* Small naming inconsistencies can break authentication flows.
+* Infrastructure transitions test patience — but the architecture held.
+
+## Day 2
+
+Day 2 focused on expanding query flexibility, strengthening Prisma error handling, and refining the controller–repository relationship without changing endpoint contracts. It also included hands-on SQL work inside Supabase to better understand how the database layer behaves underneath Prisma.
+
+### What I updated
+
+* **Optional related data loading for `GET /posts/:id`**
+
+  * Added support for `?include=author`
+  * Added support for `?include=comments`
+  * Supports combined usage: `?include=author,comments`
+  * Introduced `parseCsvSet` utility to safely parse comma-separated query values
+  * Repository now builds dynamic Prisma `include` objects
+  * Default response remains lightweight when no includes are requested
+* **Conditional comment counts for `GET /posts`**
+
+  * Added support for `?includeCounts=true`
+  * Introduced `parseBoolean` utility to normalize query booleans
+  * Repository conditionally attaches Prisma `_count` metadata
+  * Default behavior unchanged unless explicitly requested
+* **Query parsing utilities**
+
+  * Created `utils/queryParams.js`
+    * `parseBoolean(value)`
+    * `parseCsvSet(value)`
+  * Centralized query parsing logic
+  * Controllers no longer manually interpret raw query strings
+* **Prisma-aware global error handling**
+
+  * Expanded `errorHandler` to map Prisma errors:
+    * `P2002` → `409 UNIQUE_CONSTRAINT`
+    * `P2003` → `409 FOREIGN_KEY_CONSTRAINT`
+    * `P2025` → `404 RECORD_NOT_FOUND`
+  * Added internal `mapPrismaError()` helper
+  * Introduced `createErrorHandler()` factory pattern
+  * Ensured consistent `{ ok: false, error: {...} }` response envelope
+* **Repository enhancements (Posts)**
+
+  * Added `getByIdWithIncludes(id, options)`
+  * Added optional `_count` support in `list()`
+  * Cleaned up UUID handling (no numeric casting)
+  * Preserved return contracts:
+    * `null` → not found
+    * `'forbidden'` → ownership violation
+    * success → entity or boolean
+* **Controller cleanup**
+
+  * Removed outdated manual comment attachment logic
+  * Fully aligned with UUID string IDs
+  * Preserved response structure and status codes
+* **App wiring confirmation**
+
+  * Ensured `createErrorHandler()` is properly invoked in `createApp()`
+  * Middleware order remains correct:
+    * response helpers → routes → 404 handler → error handler
+      **Supabase SQL exploration**
+* Followed along in Supabase SQL editor during lecture
+* Observed how foreign keys and constraints behave at the database level
+* Saw how database-level constraint violations surface as Prisma error codes
+* Reinforced understanding of how Prisma maps relational behavior into application logic
+
+### Testing
+
+* Manually verified behavior in Postman:
+  * `GET /posts/:id?include=author`
+  * `GET /posts/:id?include=comments`
+  * `GET /posts/:id?include=author,comments`
+  * `GET /posts?includeCounts=true`
+* Confirmed:
+  * `_count` only appears when requested
+  * Includes attach related data correctly
+  * Missing resources return `404`
+  * Prisma constraint errors return normalized responses
+
+### Notes / Takeaways
+
+* Query flexibility should be explicit and opt-in.
+* Controllers coordinate relationships; repositories shape data.
+* Prisma errors must be normalized to protect API boundaries.
+* UUID-based IDs remove numeric validation logic.
+* Small parsing utilities reduce duplication across controllers.
+* Expanding features without rewriting architecture confirms abstraction strength.
 
