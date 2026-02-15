@@ -13,7 +13,16 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:watch": "vitest",
-    "postinstall": "npx prisma generate"
+    "postinstall": "npx prisma generate",
+    "db:generate": "prisma generate",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "db:reset": "node scripts/dbReset.js",
+    "dev:prisma-debug": "DEBUG=prisma:* node --watch src/server.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   },
   "repository": {
     "type": "git",

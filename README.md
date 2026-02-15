@@ -679,3 +679,100 @@ Day 2 focused on expanding query flexibility, strengthening Prisma error handlin
 * Small parsing utilities reduce duplication across controllers.
 * Expanding features without rewriting architecture confirms abstraction strength.
 
+## Day 3
+
+Day 3 focused on stabilizing the Prisma workflow and removing the legacy SQLite migration system. The goal was to make database setup, resets, and CI execution predictable without changing endpoint behavior or architectural boundaries.
+
+### What I updated
+
+#### Database Reset & Seed Tooling
+
+* Added `prisma/seed.js`
+  * Entry point for `npx prisma db seed`
+  * Guards execution to `development` only
+  * Logs created record counts
+* Added `prisma/seedData.js`
+  * Centralized seed helpers:
+    * `clearDatabase(prisma)` — deletes rows in dependency order
+    * `seedDatabase(prisma)` — inserts deterministic demo data
+  * Deletes in Foreign Key-safe order:
+    * comments → posts → users
+  * Returns created entities for logging
+* Added `scripts/dbReset.js`
+  * Runs:
+    * `clearDatabase()`
+    * then `seedDatabase()`
+  * Does **not** drop schema
+  * Safe to run repeatedly
+
+Added new `package.json` scripts:
+
+* `db:generate`
+* `db:migrate:dev`
+* `db:migrate:deploy`
+* `db:seed`
+* `db:reset`
+* `prisma:debug`
+
+Configured Prisma seed entry:
+
+```
+"prisma": {
+  "seed": "node prisma/seed.js"
+}
+```
+
+This creates a clear development flow:
+
+* Generate client
+* Apply migrations
+* Reset data safely
+* Seed deterministic records
+
+#### Removed Legacy SQLite Migration System
+
+Deleted:
+
+* `src/db/database.js`
+* `src/db/migrate.js`
+* `migrations/001_init.sql`
+* `migrations/.keep`
+
+Prisma now fully manages:
+
+* Schema definition (`schema.prisma`)
+* Migration generation
+* Migration application
+
+There is no longer a dual migration system.
+
+#### CI Workflow Updates
+
+Updated `.github/workflows/ci.yml`:
+
+* Runs on push to `main`
+* Spins up a Postgres 16 service container
+* Sets `DATABASE_URL` to the CI database
+* Runs:
+  * `prisma generate`
+  * `prisma migrate deploy`
+  * `npm test`
+* Standardized Node version to **24**
+* Enabled npm caching
+
+This ensures tests run against an isolated database and do not depend on Supabase. CI now matches the local Node runtime.
+
+#### ESLint Update
+
+Updated `eslint.config.js` to ignore:
+`generated/**`
+This prevents Prisma-generated client files from being linted.
+
+### Notes / Takeaways
+
+* Resetting data is safer than dropping schema in remote environments.
+* Prisma should be the single migration authority once adopted.
+* CI should not rely on production databases.
+* Keeping CI Node version aligned with local development prevents subtle runtime differences.
+* Removing legacy systems reduces long-term complexity.
+
