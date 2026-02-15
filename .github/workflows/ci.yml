@@ -2,30 +2,54 @@ name: CI Actions
 
 on:
   pull_request:
-    branches:
-      - main
+  push:
+    branches: [main]
 
 jobs:
-  test-and-lint:
+  test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22.x]
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: contenthub_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d contenthub_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Prisma CLI reads this (via prisma.config.ts) for migrate/generate.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/contenthub_test?schema=public
+      RUN_INTEGRATION_TESTS: "true"
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version: 24
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
-      - name: Run lint
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Apply migrations (deploy)
+        run: npx prisma migrate deploy
+
+      - name: Lint
         run: npm run lint
 
-      - name: Run tests
-        run: npm run test:run
+      - name: Test
+        run: npm test

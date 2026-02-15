@@ -6,6 +6,10 @@ export default [
   // Base JS recommendations
   js.configs.recommended,
 
+   {
+    ignores: ['generated/**'],
+  },
+
   // Project JS rules
   {
     files: ['**/*.js'],
