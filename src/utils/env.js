@@ -22,11 +22,19 @@ dotenv.config(); // Loads variables from .env into process.env
  * @returns {{ PORT: number, JWT_SECRET: string }}
  */
 export function ensureEnv() {
+
+  const API_ERROR_DETAILS = process.env.API_ERROR_DETAILS ?? 'false';//used to toggle visibility of stack traces in error responses
+
   const PORT = Number(process.env.PORT ?? 3000); // Defaults to port 3000 if not provided
+
+  const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? '*';
 
   const JWT_SECRET = process.env.JWT_SECRET ?? ''; //loads the JWT Secret used for signing and verifying authentication tokens from the env
 
   const DB_PATH = process.env.DB_PATH ?? ''; // File path for SQLite database (used in Day 4+)
+
+  //loads the DB url for Prisma to connect to Supabase.
+  const DATABASE_URL = process.env.DATABASE_URL ?? '';
 
   // Load the DB config
   const PRISMA_LOG_QUERIES = process.env.PRISMA_LOG_QUERIES ?? '';
@@ -42,8 +50,9 @@ export function ensureEnv() {
   }
 
   // Ensure database path is provided
-  if (!DB_PATH.trim()) {
-    throw new Error('Invalid DB_PATH. Please set the DB_PATH variable');
+  if (!DB_PATH.trim() &&!DATABASE_URL.trim()) {
+    throw new Error('Missing database config. Please set the DB_PATH variable');
   }
-  return { PORT, JWT_SECRET, PRISMA_LOG_QUERIES };
+
+  return { PORT, JWT_SECRET, PRISMA_LOG_QUERIES, ALLOWED_ORIGIN, API_ERROR_DETAILS, DATABASE_URL };
 }

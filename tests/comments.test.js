@@ -20,10 +20,13 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/createApp.js';
 import { createRepos } from '../src/repositories/index.js';
+import { prisma } from '../src/db/prisma.js';
+
+const MISSING_UUID = '00000000-0000-0000-0000-000000000000';
 
 async function registerAndGetToken(app) {
   const res = await request(app).post('/auth/register').send({
-    email: 'bob@example.com',
+    email: `bob+${Date.now()}@example.com`,
     name: 'Bob',
     password: 'Password123!',
   });
@@ -34,7 +37,7 @@ async function registerAndGetToken(app) {
 describe('Comments (nested)', () => {
   it('creates and lists comments for a post', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: {
         JWT_SECRET: 'test-secret',
       },
@@ -66,7 +69,7 @@ describe('Comments (nested)', () => {
   it('returns 404 when post does not exist', async () => {
     //returns a 404 msg when a post doesn't exist
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: {
         JWT_SECRET: 'test-secret',
       },
@@ -75,10 +78,46 @@ describe('Comments (nested)', () => {
     const token = await registerAndGetToken(app);
 
     const res = await request(app)
-      .post('/posts/9999/comments')
+      .post(`/posts/${MISSING_UUID}/comments`)
       .set('Authorization', `Bearer ${token}`)
       .send({ body: 'x' })
       .expect(404);
     expect(res.body.error.code).toBe('not_found'); //ensures missing parent post becomes a 404 HttpError and the error handler formats it with code: 'not_found'
+  });
+
+  it('Ownership check if a user tries to update a comment that is not theirs', async () => {
+    const app = createApp({
+      repos: await createRepos(prisma),
+      config: {
+        JWT_SECRET: 'test-secret' },
+      });
+
+      const tokenA = await registerAndGetToken(app, { email: 'usera@test.com'});
+      const tokenB = await registerAndGetToken(app, { email: 'userb@test.com'});
+
+      const created = await request(app)
+        .post('/posts')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ title: 'A', body: '1' })
+        .expect(201);
+
+      const postId = created.body.data.id;
+
+      const createdComment = await request(app) //creates a comment for the post
+        .post(`/posts/${postId}/comments`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ body: 'Nice!' })
+        .expect(201);
+
+      const commentId = createdComment.body.data.id;
+
+      const updateRes = await request(app)
+        .put(`/posts/${postId}/comments/${commentId}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .set('Content-Type', 'application/json')
+        .send({ body: 'Edited' })
+        .expect(403);
+
+    expect(updateRes.body.error.code).toBe('forbidden');
   });
 });

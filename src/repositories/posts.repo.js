@@ -52,14 +52,14 @@ export function createPostsRepo(prisma) {
     async list({ limit = 20, offset = 0, includeCounts = false } = {}) {
       // Prisma "include" lets us attach related data.
       // _count is a Prisma feature that can return counts of relations.
-      const include = includeCounts ? { _count: { select: { comments: true } } } : undefined;
+      const includeCountsFlag = includeCounts ? { _count: { select: { comments: true } } } : undefined;
 
       const [items, total] = await Promise.all([
         prisma.post.findMany({
           skip: offset,
           take: limit,
           orderBy: { createdAt: 'desc' },
-          include,
+          include: includeCountsFlag,
         }),
         prisma.post.count(),
       ]);
@@ -166,7 +166,7 @@ export function createPostsRepo(prisma) {
      * @param {{ id: string, authorId: string }} data
      * @returns {Promise<true|null|'forbidden'>}
      */
-    
+
     async delete({ id, authorId }) {
       const existing = await prisma.post.findUnique({ where: { id } });
       if (!existing) return null;

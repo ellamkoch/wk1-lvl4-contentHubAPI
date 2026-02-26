@@ -21,13 +21,19 @@ import request from 'supertest';
 
 import { createApp } from '../src/createApp.js';
 import { createRepos } from '../src/repositories/index.js';
+import { prisma } from '../src/db/prisma.js';
+
+const MISSING_UUID = '00000000-0000-0000-0000-000000000000';
 
 async function registerAndGetToken(app) {
   const res = await request(app).post('/auth/register').send({
-    email: 'bob@example.com',
+    email: `bob+${Date.now()}@example.com`,
     name: 'Bob',
     password: 'Password123!',
   });
+
+  expect(res.status).toBe(201);
+  expect(res.body).toHaveProperty('data.token');
 
   return res.body.data.token;
 }
@@ -35,7 +41,7 @@ async function registerAndGetToken(app) {
 describe('Posts', () => {
   it('create post requires auth', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: {
         JWT_SECRET: 'test-secret',
       },
@@ -46,7 +52,7 @@ describe('Posts', () => {
 
   it('creates and lists posts with pagination meta', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: {
         JWT_SECRET: 'test-secret',
       },
@@ -59,27 +65,31 @@ describe('Posts', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ title: 'A', body: '1' })
       .expect(201);
+
     await request(app)
       .post('/posts')
       .set('Authorization', `Bearer ${token}`)
       .send({ title: 'B', body: '2' })
       .expect(201);
+
     await request(app)
       .post('/posts')
       .set('Authorization', `Bearer ${token}`)
       .send({ title: 'C', body: '3' })
       .expect(201);
+
     const res = await request(app).get('/posts?limit=2&page=1').expect(200);
 
     expect(res.body.data).toHaveLength(2);
-    expect(res.body.meta.pagination.total).toBe(3);
     expect(res.body.meta.pagination.limit).toBe(2);
     expect(res.body.meta.pagination.page).toBe(1);
-  });
+    expect(res.body.meta.pagination.total).toBeGreaterThanOrEqual(3);
+
+    });
 
   it('get a post by id, or return a Post not found message', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: {
         JWT_SECRET: 'test-secret',
       },
@@ -98,14 +108,14 @@ describe('Posts', () => {
     const getRes = await request(app).get(`/posts/${id}`).expect(200);
     expect(getRes.body.data.id).toBe(id);
 
-    const miss = await request(app).get('/posts/9999').expect(404);
+    const miss = await request(app).get(`/posts/${MISSING_UUID}`).expect(404);
     expect(miss.body.error.code).toBe('not_found');
   });
 
   //if I was to split out the get post by id and a not found msg tests
   it('gets a post by id (200)', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: { JWT_SECRET: 'test-secret' },
     });
 
@@ -125,17 +135,17 @@ describe('Posts', () => {
   });
 
   it('returns 404 when a post id is missing', async () => {
-    const app = createApp({ repos: await createRepos() });
+    const app = createApp({ repos: await createRepos(prisma) });
 
     // Act + Assert: request an id that doesn't exist
-    const miss = await request(app).get('/posts/9999').expect(404);
+    const miss = await request(app).get(`/posts/${MISSING_UUID}`).expect(404);
     expect(miss.body.error.code).toBe('not_found');
   });
 
   //delete post by id success
   it('delete a post by id with success (204)', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: { JWT_SECRET: 'test-secret' },
     });
 
@@ -154,23 +164,23 @@ describe('Posts', () => {
 
   it('returns 404 when a post id that the user tries to delete is not found', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: { JWT_SECRET: 'test-secret' },
     });
 
     const token = await registerAndGetToken(app);
 
     const delRes = await request(app)
-      .delete('/posts/9999')
+      .delete(`/posts/${MISSING_UUID}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(404);
 
     expect(delRes.body.error.code).toBe('not_found');
   });
 
-  it('returns 404 when a post id is invalid (treated as not found)', async () => {
+  it('returns 404 when a post id is invalid (treated as not found', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: { JWT_SECRET: 'test-secret' },
     });
 
@@ -182,5 +192,31 @@ describe('Posts', () => {
       .expect(404);
 
     expect(delRes.body.error.code).toBe('not_found');
+  });
+
+
+ it('returns 403 when a user tries to delete a post that is not theirs', async () => {
+    const app = createApp({
+      repos: await createRepos(prisma),
+      config: { JWT_SECRET: 'test-secret' },
+    });
+
+    const tokenA = await registerAndGetToken(app, { email: 'usera@test.com'});
+    const tokenB = await registerAndGetToken(app, { email: 'userb@test.com'});
+
+    const created = await request(app)
+      .post('/posts')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ title: 'A', body: '1' })
+      .expect(201);
+
+    const postId = created.body.data.id;
+
+    const delRes = await request(app)
+      .delete(`/posts/${postId}`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(403);
+
+    expect(delRes.body.error.code).toBe('forbidden');
   });
 });

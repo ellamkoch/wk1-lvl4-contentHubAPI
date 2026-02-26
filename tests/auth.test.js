@@ -18,21 +18,23 @@
 
 import { describe, expect, it } from 'vitest';
 import request from 'supertest';
-
+import { prisma } from '../src/db/prisma.js';
 import { createApp } from '../src/createApp.js';
 import { createRepos } from '../src/repositories/index.js';
 
 describe('Authentication', () => {
   it('registers a new user and logs in successfully', async () => {
     const app = createApp({
-      repos: await createRepos(),
+      repos: await createRepos(prisma),
       config: {
         JWT_SECRET: 'test-secret',
       },
     });
 
+    const email = `alice+${Date.now()}@example.com`;
+
     const registerRes = await request(app).post('/auth/register').send({
-      email: 'alice@example.com',
+      email,
       name: 'Alice',
       password: 'Password123!',
     });
@@ -41,10 +43,11 @@ describe('Authentication', () => {
     expect(registerRes.body).toHaveProperty('data.token');
 
     const loginRes = await request(app).post('/auth/login').send({
-      email: 'alice@example.com',
+      email,
       password: 'Password123!',
     });
+    
     expect(loginRes.status).toBe(200);
-    expect(loginRes.body.data.token).toBeTruthy();
+    expect(loginRes.body).toHaveProperty('data.token');
   });
 });

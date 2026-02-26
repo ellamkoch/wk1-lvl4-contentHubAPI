@@ -37,10 +37,11 @@
  *  - return { data, meta } via res.ok(...)
  */
 
-import { notFound, forbidden } from '#utils/httpErrors';
-import { ensureBodyFields } from '#utils/guard';
+import { notFound, forbidden, badRequest } from '#utils/httpErrors';
+
 import { parsePagination } from '#utils/pagination';
-import { parseBoolean, parseCsvSet } from '#utils/queryParams';
+import { parseCsvSet } from '#utils/queryParams';
+import { ensureUuidParam } from '#utils/guard';
 
 export async function listPosts(req, res) {
   //with pagination we need req to be read for limits/pages in posts that are listed.
@@ -50,8 +51,7 @@ export async function listPosts(req, res) {
    */
   const { posts } = res.locals.repos; //gets posts repo with this request.
 
-  const includeCounts = parseBoolean(req.query.includeCounts);
-  /**
+   /**
    * Pulls pagination info from the query string (?limit=&page=).
    * parsePagination handles:
    * - converting strings to numbers
@@ -68,7 +68,10 @@ export async function listPosts(req, res) {
    * - where to start in the list (offset)
    * This separation keeps pagination strategy out of the data layer.
    */
-  const result = await posts.list({ limit, offset, includeCounts });
+  const result = await posts.list({
+    limit,
+    offset,
+    includeCounts: req.query.includeCounts,  });
 
   return res.ok(result.items, {
     pagination: { limit, page, total: result.total },
@@ -97,8 +100,10 @@ export async function getPost(req, res) {
   const { posts } = res.locals.repos; //updated for day 2 homework for query param as the includeComments query param lets us optionally attach comments for this post.
 
   const id = req.params.id; // Grab the id from the URL (req.params) and convert it to a Number.
+  ensureUuidParam(id, 'id');
 
- const include = parseCsvSet(req.query.include); // "include" is a CSV string like "comments,author" → parseCsvSet gives us a Set we can check with include.has(...)
+  const include = parseCsvSet(req.query.include); // "include" is a CSV string like "comments,author" → parseCsvSet gives us a Set we can check with include.has(...)
+
 
   const includeAuthor = include.has('author');
   const includeComments = include.has('comments');
@@ -127,7 +132,6 @@ export async function getPost(req, res) {
 export async function createPost(req, res) {
   // Pull title and body from the incoming request body.
   const { posts } = res.locals.repos;
-  ensureBodyFields(req.body, ['title', 'body']); //reinforces required fields in a simple reusable way.
 
   const { title, body } = req.body ?? {};
 
@@ -147,12 +151,18 @@ export async function updatePost(req, res) {
   const { posts } = res.locals.repos;
   const id = req.params.id;
 
-  ensureBodyFields(req.body, ['title', 'body']);
+  //putting in PATCH behavior to partially update posts
+  const updates = {};
+  if (req.body.title !== undefined) updates.title = req.body.title;
+  if (req.body.body !== undefined) updates.body = req.body.body;;
 
+  //Guard if nothing is sent to return a 400
+  if (Object.keys(updates).length === 0) {
+    throw badRequest({ message: 'Provide at least one field to update'});
+  }
   const updated = await posts.update({
     id,
-    title: req.body.title,
-    body: req.body.body,
+   ...updates, //only updates provided fields
     authorId: req.user.id,
   });
 

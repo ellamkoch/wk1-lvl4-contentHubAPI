@@ -776,3 +776,697 @@ This prevents Prisma-generated client files from being linted.
 * Keeping CI Node version aligned with local development prevents subtle runtime differences.
 * Removing legacy systems reduces long-term complexity.
 
+## Branch: `questions`
+
+This branch contains small, targeted modifications I made while answering the questions bank to prep for the 1st Badge Interview of Level 4.
+
+### A1 — Add `GET /health` with consistent response envelope + `X-Request-Id`
+
+I added a simple health check endpoint to prove I understand:
+
+* response helpers (`res.ok`)
+* headers on responses
+* consistent envelope formatting
+
+**Health endpoint**
+
+* Added `GET /health`
+  * Returns a 200 with a consistent JSON response body using `res.ok(...)`
+  * Adds header: `X-Request-Id: health-check`
+
+Verified in Postman:
+
+* Response header includes `X-Request-Id`
+* Response body returns the standardized `{ data: ... }` shape from the response helper
+
+### A2 — Switch one update route to PATCH + support partial updates
+
+I changed the posts update route from `PUT` to `PATCH` and updated the controller so it can **update only the fields provided** .
+
+**Route change**
+
+* Updated posts router:
+  * `PATCH /posts/:id` (auth required)
+
+**Controller update behavior**
+
+* `updatePost` now builds a partial `updates` object:
+  * If `title` is provided → update title
+  * If `body` is provided → update body
+* If the client sends **no valid fields** , the controller throws a `400`:
+  * This prevents “empty” updates and proves partial-update logic is intentional.
+
+**Why this matters**
+
+* `PUT` usually implies “replace the full resource”
+* `PATCH` implies “partial update”
+* This change shows I understand HTTP semantics *and* how to guard invalid request bodies.
+
+Verified in Postman:
+
+* Sent only `body` → post updated successfully, title unchanged.
+
+### Debugging / test fixes that happened while doing A1–A2 and part of A4 🧯
+
+While updating code to support the questions, tests started failing — not because the endpoints were wrong, but because **middleware wiring and response shapes matter** .
+
+What I fixed:
+
+* **Error handler factory was not being invoked**
+  * `createErrorHandler` is a factory, so it must be mounted like this:
+    * `app.use(createErrorHandler());`
+  * Once I fixed that, the API stopped returning “mystery 500s” and started returning consistent `{ ok: false, error: { ... } }` responses again.
+* **UUID expectations + “missing id” tests**
+  * IDs are UUID strings now (Prisma/Postgres), so the “missing resource” tests must use a UUID-shaped value.
+  * I used a constant like:
+    * `00000000-0000-0000-0000-000000000000`
+* **Template literal mistakes were causing bad URLs**
+  * Some failing tests were literally hitting `/posts/${MISSING_UUID}` as a string (or malformed `${}`), which produced unexpected behavior.
+  * Correct format:
+    * ``/posts/${MISSING_UUID}``
+* **Unique emails for auth tests**
+  * Re-registering the same email can hit unique constraints, so tests use a unique email like:
+    * ``bob+${Date.now()}@example.com``
+  * `Date.now()` returns a new number each run, so the email is always unique and registration won’t collide.
+* **Pagination expectation (why “I created 3” doesn’t always mean “total is 3”)**
+  * If the DB already has seeded posts (or tests run in a shared DB state), `total` might be **>= 3** , not exactly 3.
+  * So tests should assert:
+    * `total` is **at least** what we created, unless the test resets the DB.
+
+### A4 — Max Limit Guard (Validation)
+
+To prevent clients from requesting excessive amounts of data, I added a max limit guard directly inside the shared pagination utility (`parsePagination`).
+
+If a client provides:
+`GET /posts?limit=500`
+
+The API now throws a `400 bad_request` before reaching the repository.
+
+**Implementation details:**
+
+* Guard added inside `parsePagination`
+* If `limit > 100` → throw `badRequest('Limit cannot exceed 100')`
+* Error is formatted by the centralized error handler
+* Controllers remain clean
+* Repository remains unaware of pagination limits
+
+This ensures:
+
+* Every endpoint using pagination is automatically protected
+* The rule is enforced consistently across the API
+* Absurd queries are rejected early
+* Error formatting stays standardized
+
+Example response:
+
+```
+{
+  "ok": false,
+  "error": {
+    "code": "bad_request",
+    "message": "Limit cannot exceed 100"
+  }
+}
+```
+
+### A5 — Content-Type and JSON Handling
+
+#### What I implemented
+
+The API expects JSON request bodies for create and update routes. Express only parses the request body when the client sends: `Content-Type: application/json`
+
+During testing, an update request failed with: `415 Unsupported Media Type`
+
+This occurred because the request body was sent without explicitly setting the JSON content type.
+
+The fix in the test:
+
+```
+.set('Content-Type', 'application/json')
+.send({ body: 'Edited' })
+```
+
+The application uses `express.json()` middleware, so properly formatted JSON with the correct header is required for `req.body` to be populated.
+
+#### Why this matters
+
+* Express does not parse request bodies automatically.
+* Clients must declare the body format.
+* Missing or incorrect `Content-Type` headers prevent validation middleware from functioning.
+* Proper JSON handling is part of honoring the HTTP contract, not just route logic.
+
+### A6 — CORS and Preflight Requests
+
+#### What I implemented
+
+CORS was initially enabled globally: `app.use(cors());`
+
+This allows requests from all origins.
+
+To restrict access, I added environment-based configuration: `app.use(cors({ origin: ALLOWED_ORIGIN }));`
+
+`ALLOWED_ORIGIN` is loaded from environment configuration and injected into the app.
+
+This limits which frontend origins can access the API.
+
+#### Preflight Behavior
+
+Browsers automatically send an `OPTIONS` request before certain cross-origin calls when:
+
+* The method is not simple (PUT, PATCH, DELETE)
+* Custom headers are included (e.g., Authorization)
+
+The CORS middleware handles these preflight checks automatically.
+
+Postman does not trigger preflight behavior because it is not a browser.
+
+#### Why this matters
+
+* CORS is a browser-enforced security layer.
+* Preflight checks occur before the main request.
+* Restricting allowed origins improves security.
+* CORS configuration belongs in middleware, not controllers.
+
+### A7 — Nested Ownership Enforcement (403 on Child Resource)
+
+#### What I implemented
+
+I added support for updating nested comments under posts:
+
+```
+postsRouter.put(
+  '/:postId/comments/:commentId',
+  requireAuth,
+  updateComment
+);
+```
+
+Ownership enforcement remains in the repository layer.
+
+Repository contract:
+
+* `null` → resource not found
+* `'forbidden'` → resource exists but belongs to another user
+* success → updated entity
+
+The controller translates:
+
+* `null` → 404
+* `'forbidden'` → 403
+
+#### Test proving 403 behavior
+
+The automated test creates two users:
+
+1. User A creates a post.
+2. User B creates a comment under that post.
+3. User A attempts to update User B’s comment.
+
+Expected result:`403 Forbidden`
+
+Verified with:
+
+```
+.expect(403);
+expect(updateRes.body.error.code).toBe('forbidden');
+```
+
+#### Why this matters
+
+* Authentication verifies identity.
+* Authorization enforces ownership.
+* Nested resources require independent ownership checks.
+* Repositories remain HTTP-agnostic.
+* Controllers translate repository outcomes into HTTP responses.
+* This prevents privilege escalation on child resources.
+
+### A8 — Route structure and API versioning (e.g., `/api/v1`)
+
+#### What I implemented
+
+Routes are organized by resource using dedicated routers:
+
+* `posts.routes.js`
+* `auth.routes.js`
+* `comments.routes.js`
+
+Each router defines only its own resource endpoints. They are mounted centrally inside `createApp()`.
+
+Example from `createApp()`:
+
+```
+// Routes
+app.use('/posts', postsRouter);
+app.use('/auth', authRouter);
+app.use('/comments', commentsRouter);
+```
+
+To demonstrate API versioning without breaking existing behavior or tests, I mounted the same routers under a versioned namespace:
+
+```
+// Versioned routes
+app.use('/api/v1/posts', postsRouter);
+app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/comments', commentsRouter);
+```
+
+This allows both:
+
+```
+GET /posts
+GET /api/v1/posts
+```
+
+to resolve to the same router logic.
+
+#### Why this matters
+
+Route grouping keeps the API modular and scalable.
+
+Versioning at the mount level:
+
+* does not require rewriting controllers
+* does not duplicate logic
+* protects future breaking changes
+
+If a future change alters response shape or validation behavior, a new version (e.g. `/api/v2`) can be introduced without breaking existing clients.
+
+Versioning belongs at the routing layer, not inside controllers.
+
+### A9 — Debugging Workflow (Postman, Logs, Request IDs)
+
+#### What I implemented
+
+I used Postman and logging to debug request flow end-to-end.
+
+##### Postman setup
+
+For protected routes:
+
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+Example test request:
+
+```
+.set('Authorization', `Bearer ${token}`)
+.set('Content-Type', 'application/json')
+.send({ body: 'Edited' })
+```
+
+##### Health route with request ID correlation
+
+I added a request-id log to verify header handling:
+
+```
+app.get('/health', (req, res) => {
+  const requestId = req.get('X-Request-Id');
+
+  if (requestId) {
+    console.log(`RequestId: ${requestId}`);
+  }
+
+  return res.ok({ status: 'ok' });
+});
+```
+
+In Postman, I manually added: `X-Request-Id: health-001`
+
+This allowed me to correlate:
+
+* the Postman request
+* the terminal log
+* the response
+
+##### Logging
+
+Morgan middleware: `app.use(morgan('dev'));`
+
+This logs: `GET /posts 200 12ms`
+
+which helps confirm:
+
+* route hit
+* status code
+* execution timing
+
+#### Why this matters
+
+Postman verifies real HTTP behavior:
+
+* headers
+* auth
+* content-type
+* body parsing
+
+Logs confirm what the server actually received.
+
+Request IDs make debugging easier when multiple requests are in-flight.
+
+This shows understanding of request lifecycle, not just route logic.
+
+### B1 — Backend Structure (MVC-style separation with React as View)
+
+#### What I implemented
+
+I structured the backend using separation of concerns:
+
+**Routes**
+
+Define endpoints and mount middleware.
+
+Example: `postsRouter.patch('/:id', requireAuth, updatePost);`
+
+**Controllers**
+
+Handle HTTP concerns only:
+
+```
+export async function updatePost(req, res) {
+  const { posts } = res.locals.repos;
+  const id = req.params.id;
+
+  const updates = {};
+  if (req.body.title !== undefined) updates.title = req.body.title;
+  if (req.body.body !== undefined) updates.body = req.body.body;
+
+  if (Object.keys(updates).length === 0) {
+    throw badRequest({ message: 'Provide at least one field to update' });
+  }
+
+  const updated = await posts.update({
+    id,
+    ...updates,
+    authorId: req.user.id,
+  });
+
+  if (updated === null) throw notFound('Post not found');
+  if (updated === 'forbidden') throw forbidden('You do not own this post');
+
+  return res.ok(updated);
+}
+```
+
+Controllers:
+
+* read params/query/body
+* call repo
+* return HTTP response
+
+They do **not** :
+
+* call Prisma directly
+* enforce ownership rules
+* shape database includes
+
+**Repositories**
+
+Handle data access and business rules:
+
+```
+async update({ id, title, body, authorId }) {
+  const existing = await prisma.post.findUnique({ where: { id } });
+  if (!existing) return null;
+  if (existing.authorId !== authorId) return 'forbidden';
+
+  return prisma.post.update({
+    where: { id },
+    data: { title, body },
+  });
+}
+```
+
+Repositories:
+
+* contain Prisma logic
+* enforce ownership
+* return HTTP-agnostic contracts
+
+#### Why this matters
+
+This separation allows:
+
+* database swaps without rewriting controllers
+* clean test boundaries
+* predictable behavior
+* smaller, focused files
+
+React is the “View.”
+
+The backend exposes JSON contracts only.
+
+Moving `includeCounts` normalization from the controller into the repository reinforced that data-shaping belongs in the data layer.
+
+### B2 — Middleware Order & Why the Error Handler Must Be Last
+
+#### Middleware Order in `createApp()`
+
+```
+app.use(express.json());
+app.use(requireJson);
+app.use(helmet());
+app.use(cors());
+app.use(morgan('dev'));
+
+app.use(respond);
+
+app.use('/posts', postsRouter);
+app.use('/auth', authRouter);
+
+app.use(notFoundHandler);
+
+app.use(createErrorHandler());
+```
+
+#### Why error handler must be last
+
+Express executes middleware top-to-bottom.
+
+If a controller throws: `throw notFound('Post not found');`
+
+Express looks for middleware with the signature: `(err, req, res, next)`
+
+When calling: `next(err);`
+
+Express skips normal middleware and jumps directly to the next error middleware.
+
+If `createErrorHandler()` is not mounted last:
+
+* errors may not be formatted
+* responses may default to 500
+* test expectations fail
+
+#### What happens when calling `next(err)`
+
+1. Express stops executing normal middleware.
+2. It looks forward in the stack.
+3. It executes the first error middleware it finds.
+
+That is why this must be last: `app.use(createErrorHandler());`
+
+#### Validation example to prove middleware order
+
+If we insert a validation middleware:
+
+```
+postsRouter.patch(
+  '/:id',
+  requireAuth,
+  validatePostUpdate,
+  updatePost
+);
+```
+
+Execution order:
+
+1. `requireAuth`
+2. `validatePostUpdate`
+3. `updatePost`
+4. error handler (if thrown)
+
+This demonstrates understanding of middleware stacking and execution flow.
+
+### B3 — Async Error Handling in Express (Async Controllers + Centralized Error Middleware)
+
+#### What I implemented
+
+All controllers are defined as `async` functions. When an error is thrown inside an async controller (for example `throw notFound('Post not found')`), Express forwards the rejected Promise to the centralized error middleware.
+
+Example from a controller:
+
+```
+export async function getPost(req, res) {
+  const { posts } = res.locals.repos;
+  const post = await posts.getById(req.params.id);
+
+  if (!post) {
+    throw notFound('Post not found');
+  }
+
+  return res.ok(post);
+}
+```
+
+There is no duplicated `try/catch` block in the controller.
+
+If an error is thrown:
+
+* Express forwards it to the global error middleware.
+* The centralized error handler formats the response.
+* The client receives the standardized error envelope.
+
+Middleware such as `requireAuth`, `requireJson`, and `notFoundHandler` explicitly call `next(err)` to forward errors into the same centralized pipeline.
+
+#### Why this matters
+
+* Controllers remain clean and focused on HTTP orchestration.
+* No repetitive `try/catch { next(err) }` blocks.
+* All failures — sync or async — flow into one standardized error handler.
+* Error formatting is consistent across the API.
+
+### B4 — Global Error Envelope & Standardized Error Codes
+
+#### Global Error Envelope
+
+All failures are normalized into a consistent JSON shape by the centralized error handler:
+
+```
+{
+  "ok": false,
+  "error": {
+    "code": "...",
+    "message": "...",
+    "details": ...
+  }
+}
+```
+
+This formatting is handled by the shared `sendError()` helper inside `createErrorHandler()`.
+
+#### Prisma Error Mapping
+
+Known Prisma database errors are mapped to appropriate HTTP status codes:
+
+* `P2002` → `409` UNIQUE_CONSTRAINT
+* `P2003` → `409` FOREIGN_KEY_CONSTRAINT
+* `P2025` → `404` RECORD_NOT_FOUND
+
+This ensures database failures are translated into meaningful HTTP responses rather than leaking raw ORM errors.
+
+#### API_ERROR_DETAILS Environment Gating
+
+I added environment-based gating for error details:
+`const API_ERROR_DETAILS = process.env.API_ERROR_DETAILS ?? 'false';`
+
+In the error handler:
+
+```
+const showDetails =
+  req.app.locals.config.API_ERROR_DETAILS === 'true';
+
+```
+
+If enabled (`true`):
+
+* `error.details` is included for debugging.
+
+If disabled (default):
+
+* `details` is returned as `null`.
+
+This keeps the error envelope shape identical while preventing internal information leakage in production environments.
+
+#### Why this matters
+
+* The frontend can reliably read `error.code` and react predictably.
+* Status codes are intentional and consistent.
+* Database implementation details are abstracted away.
+* Production environments remain secure by default.
+
+### B5 — JWT Authentication Flow (Register → Login → Token → Protected Routes)
+
+#### Registration (Password Hashing)
+
+Passwords are never stored in plain text.
+
+During registration:
+
+* The password is hashed using `bcrypt`.
+* The stored value is a salted hash.
+* Plain text passwords are never persisted.
+
+Example:
+
+```
+export function hashPassword(password) {
+  const saltRounds = 10;
+  return bcrypt.hashSync(password, saltRounds);
+}
+```
+
+#### Login (Token Creation)
+
+During login:
+
+* The submitted password is compared using `bcrypt.compareSync`.
+* If valid, a JWT is created.
+
+Token signing:
+
+```
+export function signToken(userId, secret) {
+  return jwt.sign({ sub: userId }, secret, { expiresIn: '12h' });
+}
+```
+
+The `sub` (subject) claim stores the user ID.
+
+#### Protected Routes (Token Verification)
+
+Clients send:
+`Authorization: Bearer <token>`
+
+The `requireAuth` middleware:
+
+1. Validates header format.
+2. Verifies token signature and expiration.
+3. Extracts `payload.sub`.
+4. Attaches: `req.user = { id: payload.sub };`
+
+Controllers then use `req.user.id` for ownership enforcement.
+
+#### Token Expiration Handling
+
+If a token is expired or invalid:
+
+```
+catch {
+  return next(unauthorized('Invalid token'));
+}
+```
+
+The request returns:
+
+```
+{
+  "ok": false,
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid token",
+    "details": null
+  }
+}
+```
+
+This returns HTTP `401` and keeps the message intentionally vague for security.
+
+#### Why this matters
+
+* Passwords are securely hashed.
+* Authentication is stateless.
+* Token expiration is enforced server-side.
+* Identity (`req.user`) is attached before controller logic.
+* Authorization (ownership checks) remains separate from authentication.
+

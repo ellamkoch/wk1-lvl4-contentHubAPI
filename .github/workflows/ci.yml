@@ -39,6 +39,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Print environment versions
+        run: |
+          node -v
+          npx prisma -v
+
       - name: Install deps
         run: npm ci
 

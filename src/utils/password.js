@@ -21,7 +21,7 @@ export function hashPassword(password) {
 }
 
 /**
- * This function compares the plaintext password with stored hash, rehashes the plaintext internally, and returns true or fals.
+ * This function compares the plaintext password with stored hash, rehashes the plaintext internally, and returns true or false.
  * @param {string} password
  * @param {string} hash
  * @returns {boolean}
@@ -30,3 +30,4 @@ export function hashPassword(password) {
 export function verifyPassword(password, hash) {
   return bcrypt.compareSync(password, hash);
 }
+0

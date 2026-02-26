@@ -43,3 +43,6 @@ export const notFound = (message = 'Not Found', details) =>
 
 export const conflict = (message = 'Conflict', details) =>
   new HttpError(409, 'conflict', message, details);
+
+export const unsupportedMediaType = (message = 'Unsupported Media Type', details) =>
+  new HttpError(415, 'unsupported_media_type', message, details);

@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
  * @returns {string}
  */
 export function signToken({ userId, secret }) {
-  return jwt.sign({ sub: userId }, secret, { expiresIn: '2h' });
+  return jwt.sign({ sub: userId }, secret, { expiresIn: '12h' });
 }
 
 /**

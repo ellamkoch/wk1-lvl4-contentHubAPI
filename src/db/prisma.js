@@ -1,4 +1,4 @@
-//This file creates one shared Prisma client instance for the app. 
+//This file creates one shared Prisma client instance for the app.
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../generated/prisma/client.js';

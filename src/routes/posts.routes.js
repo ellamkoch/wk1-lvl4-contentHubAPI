@@ -24,17 +24,19 @@ import {
   updatePost,
   deletePost,
 } from '#controllers/posts.controller';
-import { listCommentsForPost, createCommentForPost } from '#controllers/comments.controller';
+import { listCommentsForPost, createCommentForPost, updateComment } from '#controllers/comments.controller';
 import { requireAuth } from '#middleware/requireAuth'; //router protects specific endpoints with this
+import { validateCreatePost } from '#middleware/validateCreatePost';
 
 export const postsRouter = Router();
 //public routes
 postsRouter.get('/', listPosts);
 postsRouter.get('/:id', getPost);
 //routes that require auth
-postsRouter.post('/', requireAuth, createPost);
-postsRouter.put('/:id', requireAuth, updatePost);
+postsRouter.post('/', requireAuth, validateCreatePost, createPost);
+postsRouter.patch('/:id', requireAuth, updatePost);
 postsRouter.delete('/:id', requireAuth, deletePost);
 //This nests the comments inside a post
 postsRouter.get('/:postId/comments', listCommentsForPost); //viewing comments is public
 postsRouter.post('/:postId/comments', requireAuth, createCommentForPost); //auth required to create comments
+postsRouter.put('/:postId/comments/:commentId', requireAuth, updateComment);

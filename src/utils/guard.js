@@ -32,3 +32,9 @@ export function ensureBodyFields(obj, fields) {
     throw badRequest('Missing required fields', { missing });
   }
 }
+
+export function ensureUuidParam(value, name = 'id') {
+  if (typeof value !== 'string' || value.length !== 36) {
+    throw badRequest(`Invalid ${name} parameter`);
+  }
+}

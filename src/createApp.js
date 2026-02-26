@@ -3,10 +3,12 @@
 import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cors from 'cors';
 
 import { createErrorHandler } from '#middleware/errorHandler';
 import { notFoundHandler } from '#middleware/notFoundHandler';
 import { respond } from '#middleware/responds';
+import { requireJson } from '#middleware/requireJson';
 
 import { postsRouter } from '#routes/posts.routes';
 import { authRouter } from '#routes/auth.routes';
@@ -27,19 +29,28 @@ export function createApp({ repos, config = {} }) {
   app.locals.config = config; // Store config so it’s accessible app-wide (app.locals is available in middleware/routes)
 
   app.use(express.json());// Built-in middleware that parses JSON request bodies into req.body
+  app.use(requireJson);  // Request validation middleware that enforces Content-Type: application/json for POST, PUT, and PATCH
 
   app.use(helmet()); // Security middleware that sets HTTP headers to protect against common attacks
 
   app.use(morgan('dev'));// Logging middleware that prints request details to the console (dev-friendly)
+  //X-Request-Id with morgan
+  app.use((req, _res, next) => {
+    const requestId = req.get('X-Request-Id');
+    if (requestId) console.log(`requestId=${requestId}`);
+    next();
+  })
 
     // Middleware Response helpers (res.ok/res.created, etc.)
   app.use(respond); // Must run before routes so controllers can use these helpers.
+  app.use(cors({ origin: app.locals.config.ALLOWED_ORIGIN })); //this is limited to the port set within the .env file and pulled into the env.js
+  // app.use(cors()); //security mechanism that allows backend to accept requests from a front end running on a different port or domain. This allows all origins.
 
 // Health check endpoint - confirms the API is up
-  app.get('/health', (_req, res) => {
-    //the _ before req means that this can be ignored.
-    res.json({ status: 'ok', message: 'App is running correctly' });
-  });
+  app.get('/health', (req, res) => {
+    
+    return res.ok({ status: 'ok' });
+});
 
    app.use((_req, res, next) => {  // Attach repositories to res.locals so controllers can access them during the request
     res.locals.repos = repos;
@@ -51,13 +62,18 @@ export function createApp({ repos, config = {} }) {
   app.use('/auth', authRouter);
   app.use('/comments', commentsRouter);
 
+  //How to added versioning, but not break the tests
+  app.use('/api/v1/posts', postsRouter);
+  app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/comments', commentsRouter);
+
  // Catch-all 404 handler (must be after routes so it only runs when no route matches)
   app.use(notFoundHandler);
 
   // Global error handler (must be last).
   // createErrorHandler() returns the actual 4-argument Express error middleware.
   // Only runs when an error is thrown or next(err) is called.
-  app.use(createErrorHandler);
+  app.use(createErrorHandler());
 
   return app;
 }

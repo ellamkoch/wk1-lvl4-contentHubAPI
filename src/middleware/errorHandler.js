@@ -87,6 +87,9 @@ function mapPrismaError(err) {
 export function createErrorHandler() {
   // eslint-disable-next-line no-unused-vars
   return function errorHandler(err, req, res, next) {
+    const showDetails =
+      req.app?.locals?.config?.API_ERROR_DETAILS === 'true';
+
      // 1) Prisma DB errors → mapped to HttpError → standardized response
     const prismaMapped = mapPrismaError(err);
     if (prismaMapped) {
@@ -95,12 +98,18 @@ export function createErrorHandler() {
         prismaMapped.status,
         prismaMapped.code,
         prismaMapped.message,
-        prismaMapped.details,
+        showDetails ? prismaMapped.details : null
       );
     }
     // 2) App-thrown HttpError instances → standardized response
     if (err instanceof HttpError) {
-      return sendError(res, err.status, err.code, err.message, err.details);
+      return sendError(
+        res,
+        err.status,
+        err.code,
+        err.message,
+        showDetails ? err.details: null
+      );
     }
 
     // 3) Fallback for unknown/unexpected errors

@@ -4,10 +4,18 @@
  * @param {{ limit?: string|number, page?: string|number }} query
  * @returns {{ limit: number, page: number, offset: number }}
  */
+import { badRequest } from "#utils/httpErrors";
+
 export function parsePagination(query = {}) {
   //accepts a query object and defaults to an empty object so it won't crash if nothing is passed.
   const rawLimit = query.limit ?? 20; //if limit is missing, default to 20
   const rawPage = query.page ?? 1; // if page is missing, default to 0
+
+  const parsedLimit = Number(rawLimit);
+
+  if (parsedLimit > 100) {
+    throw badRequest('Limit cannot exceed 100');
+  }
 
   const limit = clampInt(rawLimit, 1, 100, 20); //limits, min. of 1 100 max, w/ a fallback of 20
   const page = clampInt(rawPage, 1, Number.MAX_SAFE_INTEGER, 1); //min of 1, max is a very large integer, 1 is the fallback

@@ -37,8 +37,10 @@ export async function createCommentForPost(req, res) {
   const { posts, comments } = res.locals.repos;
   const postId = req.params.postId;
 
+  const post = await posts.getById(postId);
+
   //guards needed for this
-  ensure(posts.getById(postId), notFound('Post not found')); //ensure the post exists or list 404 not found error, like above.
+  ensure(post, notFound('Post not found')); //ensure the post exists or list 404 not found error, like above.
   ensureBodyFields(req.body, ['body']); //ensures the body contains the required fields.
 
   const created = await comments.create({
@@ -55,13 +57,13 @@ export async function createCommentForPost(req, res) {
  */
 export async function updateComment(req, res) {
   const { comments } = res.locals.repos;
-  const id = req.params.id;
+  const commentId = req.params.commentId;
 
   ensureBodyFields(req.body, ['body']);
 
   //repo tries to update only if authorId matches. repo returns a special value if not owner
   const updated = await comments.update({
-    id,
+    id: commentId,
     body: req.body.body,
     authorId: req.user.id,
   });
@@ -77,9 +79,11 @@ export async function updateComment(req, res) {
  */
 export async function deleteComment(req, res) {
   const { comments } = res.locals.repos;
-  const id = req.params.id;
+  const commentId = req.params.commentId;
 
-  const result = await comments.delete({ id, authorId: req.user.id });
+  const result = await comments.delete({
+    id: commentId,
+    authorId: req.user.id });
 
   if (result === null) throw notFound('Comment not found');
   if (result === 'forbidden') throw forbidden('You do not own this comment');
